@@ -236,3 +236,16 @@ test('topEnergy finds the highest tabulated incident energy', () => {
   assert.equal(topEnergy([elasticRow, correlatedRow]), 1.4e7);
   assert.equal(topEnergy([{ type: 'nbody' }]), 2e7);
 });
+
+test('placeholder tables below a threshold are skipped in both modes and counted', () => {
+  const d = parseDistribution({
+    type: 'kalbach-mann',
+    km_energies: f64([1e-5, 2e7]),
+    // table 0: all probability in [0, 1e-5 eV]; table 1: a real spectrum
+    km_data: f64([0, 1e-5, 0, 1e6, /* p */ 1e5, 0, 1e-6, 1e-6, /* c */ 0, 1, 0, 1, /* r */ 0, 0, 0, 0, /* a */ 1, 1, 1, 1]),
+    km_offsets: i32([0, 2]), km_interp: i32([1, 2]), km_n_discrete: i32([0, 0]),
+  });
+  assert.deepEqual(d.energy.tables.map((t) => t.ein), [2e7]);
+  assert.deepEqual(d.angle.tables.map((t) => t.ein), [2e7]);
+  assert.equal(d.energy.placeholders, 1);
+});

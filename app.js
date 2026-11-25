@@ -245,15 +245,23 @@ function renderViewInfo() {
   if (mode.averaged) notes.push('angle averaged over the outgoing-energy spectrum');
   if (mode.analytic) notes.push(mode.analytic);
   if (mode.discreteDropped) notes.push(`discrete lines at ${mode.discreteDropped} incident energies are not drawn`);
+  if (mode.placeholders) notes.push(`${mode.placeholders} placeholder table${mode.placeholders === 1 ? '' : 's'} at or below the reaction's threshold (all probability under 1 meV) not drawn`);
   $('view-notes').textContent = notes.join(' · ');
 }
 
 // --- ridgeline ------------------------------------------------------------------------
 
+/// Give every selection of the current mode its colour slot in list order, so a
+/// curve's colour does not depend on which nuclide finished downloading first.
+function assignSlots() {
+  for (const s of state[state.mode]) slotOf(selKey(state.mode, s));
+}
+
 /// Selected incident energies of the shown view in the current mode, with colours.
 function selectedInView() {
   const out = new Map();
   if (!state.view) return out;
+  assignSlots();
   for (const s of state[state.mode]) {
     if (!sameView(s, state.view)) continue;
     out.set(s.ein, styleFor(slotOf(selKey(state.mode, s))).color);
@@ -448,6 +456,7 @@ function curveName(c) {
 
 function drawSelected() {
   const mode = state.mode;
+  assignSlots();
   const series = [];
   const rowsHtml = [];
   const errs = [];

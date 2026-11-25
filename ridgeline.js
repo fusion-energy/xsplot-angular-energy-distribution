@@ -1,10 +1,10 @@
 // The ridgeline: one ridge per tabulated incident energy, for picking curves.
 //
-// Each ridge sits at its incident energy on a logarithmic vertical axis, so the
-// axis reads as incident energy, and is scaled to its own peak: it shows the
-// shape of the distribution, not its size (the selected panel shows values).
-// Ridges are drawn from the highest incident energy down, each filled with the
-// background, so a lower ridge passes in front of the one above it.
+// Ridges are evenly spaced, lowest incident energy at the bottom, and each is
+// scaled to its own peak: it shows the shape of the distribution, not its size
+// (the selected panel shows values). They are drawn from the highest incident
+// energy down, each filled opaquely, so a lower ridge passes in front of the
+// one above it.
 //
 // A table can hold thousands of incident energies (Fe56 elastic has 3979), so
 // the ridges drawn are thinned to about `max`, evenly spaced in log energy,
@@ -21,13 +21,17 @@ import { ENERGY_UNITS, SURFACE, GRID, INK, INK_SECONDARY, blend, logRange } from
 /// energy of 0 (some angular tables start there) still has a place on a log axis.
 const FLOOR_EV = 1e-5;
 /// The smallest density an angular ridge is scaled to, so an isotropic
-/// distribution (0.5 everywhere) is a ridge at half height rather than a box.
-const ANGLE_PEAK_FLOOR = 1;
-const UNSELECTED_LINE = '#9a9a90';
+/// distribution (0.5 everywhere) is a slim band at a quarter of the ridge
+/// height rather than a solid block.
+const ANGLE_PEAK_FLOOR = 2;
 
 /// Indices of `tables` to draw: all when there are at most `max`, otherwise
-/// about `max` spread evenly in log incident energy, plus every table whose
-/// `ein` is in `keep`. Ascending.
+/// about `max`, plus every table whose `ein` is in `keep`. Ascending.
+///
+/// Half are spread evenly in log incident energy, which covers the whole range;
+/// where the tabulated energies are sparse several of those land on the same
+/// table, and the rest are then spread evenly through the tables in order,
+/// which puts them where the evaluation has the most detail.
 export function thin(tables, max, keep = new Set()) {
   const n = tables.length;
   const chosen = new Set();
@@ -36,12 +40,15 @@ export function thin(tables, max, keep = new Set()) {
   } else {
     const logs = tables.map((t) => Math.log10(Math.max(t.ein, FLOOR_EV)));
     const lo = logs[0], hi = logs[n - 1];
+    const half = Math.max(2, Math.ceil(max / 2));
     let j = 0;
-    for (let k = 0; k < max; k++) {
-      const target = lo + ((hi - lo) * k) / (max - 1);
+    for (let k = 0; k < half; k++) {
+      const target = lo + ((hi - lo) * k) / (half - 1);
       while (j + 1 < n && Math.abs(logs[j + 1] - target) <= Math.abs(logs[j] - target)) j++;
       chosen.add(j);
     }
+    const rest = max - chosen.size;
+    for (let k = 0; k < rest; k++) chosen.add(Math.round(((n - 1) * (k + 0.5)) / rest));
   }
   tables.forEach((t, i) => { if (keep.has(t.ein)) chosen.add(i); });
   return [...chosen].sort((a, b) => a - b);
@@ -71,55 +78,49 @@ export function formatEnergy(ev, unit = 'eV') {
   return `${fmt(ev)} eV`;
 }
 
-/// Ticks for the incident-energy axis between `lo` and `hi` (log10 eV):
-/// decades, or 1-2-5 when fewer than three decades fit.
-function energyTicks(lo, hi, unit) {
-  const pick = (mults) => {
-    const vals = [];
-    for (let k = Math.floor(lo) - 1; k <= Math.ceil(hi) + 1; k++) {
-      for (const m of mults) {
-        const v = k + Math.log10(m);
-        if (v >= lo && v <= hi) vals.push(v);
-      }
-    }
-    return vals;
-  };
-  let vals = pick([1]);
-  if (vals.length < 3) vals = pick([1, 2, 5]);
-  if (vals.length < 3) vals = pick([1, 1.5, 2, 3, 5, 7]);
-  return { tickvals: vals, ticktext: vals.map((v) => formatEnergy(Math.pow(10, v), unit)) };
+/// The ridge fill, low incident energy to high: muted, so that a selected
+/// ridge, drawn in its curve's vivid colour, stands out from all of them.
+const RAMP = ['#1f3550', '#24485a', '#2a5a5c', '#3a6a55', '#55764a', '#74793f'];
+const OUTLINE = 'rgba(236, 232, 218, 0.9)';
+
+/// The ramp colour at `f` (0 to 1).
+function rampColour(f) {
+  const t = Math.min(Math.max(f, 0), 1) * (RAMP.length - 1);
+  const i = Math.min(Math.floor(t), RAMP.length - 2);
+  return blend(RAMP[i + 1], RAMP[i], t - i);
 }
 
-/// The median gap between consecutive distinct values, or `fallback`.
-function medianGap(sorted, fallback) {
-  const gaps = [];
-  for (let i = 1; i < sorted.length; i++) if (sorted[i] - sorted[i - 1] > 1e-9) gaps.push(sorted[i] - sorted[i - 1]);
-  if (!gaps.length) return fallback;
-  gaps.sort((a, b) => a - b);
-  return gaps[Math.floor(gaps.length / 2)];
+/// Up to `count` ridge indices to label, evenly through `n`, always the first
+/// and the last.
+function labelled(n, count) {
+  if (n <= count) return [...Array(n).keys()];
+  const step = (n - 1) / (count - 1);
+  return [...new Set(Array.from({ length: count }, (_, k) => Math.round(k * step)))];
 }
 
 /// The ridgeline figure.
 ///
 /// `tables`: one mode's tables. `selected`: Map from a selected `ein` to its
-/// colour. A ridge is `overlap` times the median gap between drawn ridges, so
-/// where incident energies cluster the ridges overlap as much as anywhere else. Returns `{data, layout, config, ridges}`, `ridges` ascending by
-/// incident energy, each `{ein, base, h, xs, ys}` with the drawn x values and
-/// the curve's height as a fraction of the ridge, for `pickRidge`.
+/// colour. Ridges are evenly spaced, lowest incident energy at the bottom, and
+/// the axis is labelled with the incident energies of some of them: tabulated
+/// energies cluster (Fe56 elastic has most of its 3979 above 10 keV), and
+/// placing ridges at their energy on a log axis left most of the plot empty and
+/// the rest crowded. Each ridge rises `overlap` spacings above its baseline.
+///
+/// Returns `{data, layout, config, ridges}`, `ridges` ascending by incident
+/// energy, each `{ein, base, h, xs, ys}` with the drawn x values and the
+/// curve's height as a fraction of the ridge, for `pickRidge`.
 export function buildRidgeline(tables, {
-  mode = 'energy', max = 40, selected = new Map(), xLog = true, energyUnit = 'eV', overlap = 1.8, xTitle = '',
+  mode = 'energy', max = 40, selected = new Map(), xLog = true, energyUnit = 'eV', overlap = 2.4, xTitle = '',
 } = {}) {
   const indices = thin(tables, max, new Set(selected.keys()));
   const scale = mode === 'energy' ? ENERGY_UNITS[energyUnit] ?? 1 : 1;
   const logX = mode === 'energy' && xLog;
-  const bases = indices.map((i) => Math.log10(Math.max(tables[i].ein, FLOOR_EV)));
-  const lo = bases.length ? Math.min(...bases) : 0;
-  const hi = bases.length ? Math.max(...bases) : 1;
-  const h = Math.max(medianGap(bases, 0.5) * overlap, 1e-3);
+  const h = overlap;
   const peakFloor = mode === 'angle' ? ANGLE_PEAK_FLOOR : 0;
 
   const ridges = [];
-  indices.forEach((i, k) => {
+  for (const i of indices) {
     const t = tables[i];
     const steps = stepify(t.x, t.p, t.hist);
     const xs = [], ys = [];
@@ -131,52 +132,58 @@ export function buildRidgeline(tables, {
       ys.push(steps.y[j]);
       if (steps.y[j] > peak) peak = steps.y[j];
     }
-    if (!xs.length) return;
+    if (!xs.length) continue;
     const norm = Math.max(peak, peakFloor);
-    const frac = ys.map((y) => (norm > 0 ? y / norm : 0));
-    ridges.push({ ein: t.ein, base: bases[k], h, xs, ys: frac });
-  });
+    ridges.push({ ein: t.ein, base: ridges.length, h, xs, ys: ys.map((y) => (norm > 0 ? y / norm : 0)) });
+  }
 
-  // Highest first, so each lower ridge is drawn over the one above it.
-  const data = [...ridges].reverse().map((r) => {
+  // Highest first, so each lower ridge is drawn over the one above it. A ridge
+  // is two traces: the filled shape with no outline, and the outline along the
+  // curve alone, so no baseline is drawn under it.
+  const n = ridges.length;
+  const data = [];
+  for (const r of [...ridges].reverse()) {
     const colour = selected.get(r.ein);
-    const x = [...r.xs, r.xs[r.xs.length - 1], r.xs[0]];
-    const y = [...r.ys.map((f) => r.base + r.h * f), r.base, r.base];
-    return {
-      type: 'scatter',
-      mode: 'lines',
-      x, y,
+    const y = r.ys.map((f) => r.base + r.h * f);
+    data.push({
+      type: 'scatter', mode: 'lines',
+      x: [r.xs[0], ...r.xs, r.xs[r.xs.length - 1]],
+      y: [r.base, ...y, r.base],
       fill: 'toself',
-      fillcolor: colour ? blend(colour, SURFACE, 0.35) : SURFACE,
-      line: { color: colour ?? UNSELECTED_LINE, width: colour ? 2.2 : 1 },
-      hoverinfo: 'skip',
-      showlegend: false,
-    };
-  });
+      fillcolor: colour ? blend(colour, SURFACE, 0.8) : rampColour(n > 1 ? r.base / (n - 1) : 0.5),
+      line: { width: 0 },
+      hoverinfo: 'skip', showlegend: false,
+    });
+    data.push({
+      type: 'scatter', mode: 'lines',
+      x: r.xs, y,
+      line: { color: colour ? '#ffffff' : OUTLINE, width: colour ? 2 : 1 },
+      hoverinfo: 'skip', showlegend: false,
+    });
+  }
 
   const xRange = logX ? logRange(ridges.map((r) => ({ x: r.xs, y: r.ys }))) : null;
-  const top = hi + h * 1.05;
-  const bottom = lo - Math.max((hi - lo) * 0.03, 0.05);
-  const ticks = energyTicks(bottom, top, energyUnit);
+  const ticks = labelled(n, 12);
   const layout = {
     paper_bgcolor: SURFACE,
     plot_bgcolor: SURFACE,
     font: { color: INK_SECONDARY, size: 13 },
-    margin: { l: 90, r: 20, t: 20, b: 60 },
+    margin: { l: 90, r: 20, t: 10, b: 60 },
     xaxis: {
       type: logX ? 'log' : 'linear',
-      gridcolor: GRID, zerolinecolor: GRID, linecolor: GRID,
+      gridcolor: GRID, zeroline: false, linecolor: GRID,
       tickfont: { color: INK_SECONDARY },
       title: { text: xTitle, font: { color: INK } },
       exponentformat: 'power',
       fixedrange: true,
-      ...(mode === 'angle' ? { range: [-1.02, 1.02] } : xRange ? { range: xRange } : {}),
+      ...(mode === 'angle' ? { range: [-1, 1] } : xRange ? { range: xRange } : {}),
     },
     yaxis: {
       type: 'linear',
-      range: [bottom, top],
-      tickvals: ticks.tickvals, ticktext: ticks.ticktext,
-      gridcolor: GRID, zeroline: false, linecolor: GRID,
+      range: [-0.4, Math.max(n - 1, 0) + h + 0.2],
+      tickvals: ticks.map((k) => ridges[k].base),
+      ticktext: ticks.map((k) => formatEnergy(ridges[k].ein, energyUnit)),
+      showgrid: false, zeroline: false, linecolor: GRID,
       tickfont: { color: INK_SECONDARY },
       title: { text: 'Incident energy', font: { color: INK } },
       fixedrange: true,

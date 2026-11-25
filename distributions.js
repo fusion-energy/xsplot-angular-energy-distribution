@@ -3,7 +3,7 @@
 //
 // Every distribution comes out in one shape per mode:
 //
-//   {tables: [{ein, x, p, hist}], note, discreteDropped}
+//   {tables: [{ein, x, p, hist}], note, discreteDropped, placeholders}
 //
 // one table per tabulated incident energy `ein` (eV): `x` the outgoing energy
 // (eV) in energy mode or the scattering cosine in angle mode, `p` the
@@ -139,7 +139,14 @@ export function yieldFunction(product) {
   return () => 1;
 }
 
-const emptyMode = (note) => ({ tables: [], note, discreteDropped: 0 });
+const emptyMode = (note) => ({ tables: [], note, discreteDropped: 0, placeholders: 0 });
+
+/// Outgoing-energy tables narrower than this (eV) are placeholders: some
+/// evaluations give a reaction a table at incident energies where it does not
+/// occur, with all its probability between 0 and 1e-5 eV (C12 MT 5 below
+/// 20 MeV). They carry no information and are not drawn in either mode.
+export const PLACEHOLDER_WIDTH_EV = 1e-3;
+const isPlaceholder = (x) => x.length > 0 && x[x.length - 1] - x[0] < PLACEHOLDER_WIDTH_EV;
 
 // --- tabulated laws -----------------------------------------------------------
 
@@ -148,14 +155,16 @@ const emptyMode = (note) => ({ tables: [], note, discreteDropped: 0 });
 /// `energy_dist_data` (3) and `km_data` (5). `nDiscrete` leading points of a
 /// table are discrete lines (a probability, not a density) and are left out of
 /// the density; their count is returned.
-function packedTables(energies, data, offsets, interp, rows, nDiscrete) {
+function packedTables(energies, data, offsets, interp, rows, nDiscrete, skipPlaceholders = false) {
   const total = Math.floor(len(data) / rows);
   const tables = [];
   let dropped = 0;
+  let placeholders = 0;
   for (let idx = 0; idx < len(energies); idx++) {
     const start = at(offsets, idx, 0);
     const end = idx + 1 < len(offsets) ? offsets[idx + 1] : total;
     const nd = Math.min(at(nDiscrete, idx, 0), end - start);
+    if (skipPlaceholders && isPlaceholder(data.subarray(start + Math.max(0, nd), end))) { placeholders++; continue; }
     dropped += nd > 0 ? 1 : 0;
     const from = start + Math.max(0, nd);
     const x = data.subarray ? data.subarray(from, end) : data.slice(from, end);
@@ -163,7 +172,7 @@ function packedTables(energies, data, offsets, interp, rows, nDiscrete) {
     const t = table(energies[idx], x, p, at(interp, idx, 2) === 1);
     if (t) tables.push(t);
   }
-  return { tables, dropped };
+  return { tables, dropped, placeholders };
 }
 
 /// `parse_uncorrelated`, angle half.
@@ -172,7 +181,7 @@ function uncorrelatedAngle(row) {
     return emptyMode('This product is emitted isotropically: the evaluation gives no angular distribution, so every direction is equally likely.');
   }
   const { tables } = packedTables(row.angle_energies, row.angle_mu_data, row.angle_mu_offsets, row.angle_mu_interpolation, 3, null);
-  return { tables, note: tables.length ? null : 'The angular tables are empty.', discreteDropped: 0 };
+  return { tables, note: tables.length ? null : 'The angular tables are empty.', discreteDropped: 0, placeholders: 0 };
 }
 
 /// `parse_energy_distribution`.
@@ -183,9 +192,9 @@ function uncorrelatedEnergy(row) {
     case undefined:
       return emptyMode('This reaction tabulates no outgoing-energy distribution. For elastic scattering the outgoing energy follows from the scattering angle alone, so its angular distribution (Angle mode) is the whole story.');
     case 'continuous': {
-      const { tables, dropped } = packedTables(row.energy_dist_energies, row.energy_dist_data, row.energy_dist_offsets,
-        row.energy_dist_out_interp, 3, row.energy_dist_n_discrete);
-      return { tables, note: null, discreteDropped: dropped };
+      const { tables, dropped, placeholders } = packedTables(row.energy_dist_energies, row.energy_dist_data, row.energy_dist_offsets,
+        row.energy_dist_out_interp, 3, row.energy_dist_n_discrete, true);
+      return { tables, note: null, discreteDropped: dropped, placeholders };
     }
     case 'level': {
       const ratio = row.energy_mass_ratio ?? 0;
@@ -218,11 +227,13 @@ function correlated(row) {
   const energyTables = [];
   const angleTables = [];
   let dropped = 0;
+  let placeholders = 0;
   const grid = muGrid();
   for (let idx = 0; idx < energies.length; idx++) {
     const es = at(offsets, idx, 0);
     const ee = idx + 1 < offsets.length ? offsets[idx + 1] : totalEout;
     const nd = Math.min(at(row.corr_eout_n_discrete, idx, 0), ee - es);
+    if (isPlaceholder(eout.subarray(es + Math.max(0, nd), ee))) { placeholders++; continue; }
     if (nd > 0) dropped++;
     const hist = at(row.corr_eout_interp, idx, 2) === 1;
     const x = eout.subarray(es, ee);
@@ -260,8 +271,8 @@ function correlated(row) {
     }
   }
   return {
-    energy: { tables: energyTables, note: null, discreteDropped: dropped },
-    angle: { tables: angleTables, note: null, discreteDropped: 0, averaged: true },
+    energy: { tables: energyTables, note: null, discreteDropped: dropped, placeholders },
+    angle: { tables: angleTables, note: null, discreteDropped: 0, placeholders, averaged: true },
   };
 }
 
@@ -277,10 +288,12 @@ function kalbachMann(row) {
   const energyTables = [];
   const angleTables = [];
   let dropped = 0;
+  let placeholders = 0;
   for (let idx = 0; idx < energies.length; idx++) {
     const s = at(offsets, idx, 0);
     const e = idx + 1 < offsets.length ? offsets[idx + 1] : total;
     const nd = Math.min(at(row.km_n_discrete, idx, 0), e - s);
+    if (isPlaceholder(data.subarray(s + Math.max(0, nd), e))) { placeholders++; continue; }
     if (nd > 0) dropped++;
     const hist = at(row.km_interp, idx, 2) === 1;
     const x = data.subarray(s, e);
@@ -305,8 +318,8 @@ function kalbachMann(row) {
     }
   }
   return {
-    energy: { tables: energyTables, note: null, discreteDropped: dropped },
-    angle: { tables: angleTables, note: null, discreteDropped: 0, averaged: true },
+    energy: { tables: energyTables, note: null, discreteDropped: dropped, placeholders },
+    angle: { tables: angleTables, note: null, discreteDropped: 0, placeholders, averaged: true },
   };
 }
 
@@ -381,7 +394,7 @@ function analyticSpectrum(row, kind) {
     if (t) tables.push(t);
   }
   const name = { maxwell: 'Maxwell', evaporation: 'evaporation', watt: 'Watt' }[kind];
-  return { tables, note: null, discreteDropped: 0, analytic: `${name} spectrum, computed from its tabulated parameters` };
+  return { tables, note: null, discreteDropped: 0, placeholders: 0, analytic: `${name} spectrum, computed from its tabulated parameters` };
 }
 
 /// `parse_nbody`: N-body phase space (ENDF MF6 LAW 6), density
@@ -407,7 +420,7 @@ function nbody(row, top = NBODY_EMAX) {
     const t = table(ein, grid, p, false);
     if (t) tables.push(t);
   }
-  return { tables, note: null, discreteDropped: 0, analytic: `${n}-body phase-space law, computed at ${NBODY_POINTS} incident energies up to ${fmtEnergy(top)}` };
+  return { tables, note: null, discreteDropped: 0, placeholders: 0, analytic: `${n}-body phase-space law, computed at ${NBODY_POINTS} incident energies up to ${fmtEnergy(top)}` };
 }
 
 // --- one row, one product, one choice -------------------------------------------
@@ -512,6 +525,7 @@ export function combineModes(weighted) {
     tables,
     note: null,
     discreteDropped: withTables.reduce((n, { mode }) => n + mode.discreteDropped, 0),
+    placeholders: withTables.reduce((n, { mode }) => n + (mode.placeholders ?? 0), 0),
     averaged: withTables.some(({ mode }) => mode.averaged),
     analytic: first.analytic,
   };

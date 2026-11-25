@@ -7,7 +7,7 @@ import { emitsNeutrons, choicesOf, reactionName, parseChoiceId } from '../reacti
 import { rowsOfIndex, mergeRows, filterRows, paginate, rowId } from '../table.js';
 import { encodeState, decodeState, einText } from '../url_state.js';
 import { thin, stepify, pickRidge, buildRidgeline, formatEnergy } from '../ridgeline.js';
-import { logRange, buildSelectedFigure, blend } from '../plot.js';
+import { logRange, buildSelectedFigure, blend, quantile } from '../plot.js';
 
 // The MTs published for Fe56, U235 and Li7 in ENDF/B-VIII.1, and the ones
 // whose products.arrow carries an outgoing neutron.
@@ -90,7 +90,7 @@ const tables = (eins) => eins.map((ein) => ({ ein, x: Float64Array.from([0, 1, 2
 test('thinning spreads ridges in log energy and keeps selected ones', () => {
   const t = tables(Array.from({ length: 1000 }, (_, i) => Math.pow(10, -5 + (13 * i) / 999)));
   const chosen = thin(t, 40);
-  assert.ok(chosen.length >= 38 && chosen.length <= 40);
+  assert.ok(chosen.length >= 36 && chosen.length <= 40, String(chosen.length));
   assert.equal(chosen[0], 0);
   assert.equal(chosen[chosen.length - 1], 999);
   const kept = thin(t, 40, new Set([t[500].ein]));
@@ -111,19 +111,30 @@ test('pickRidge finds the ridge whose curve is under the cursor', () => {
   // Just above b's baseline away from a's peak, b is picked.
   assert.equal(pickRidge(fig.ridges, 0.05, b.base + 0.01 * b.h), b);
   assert.equal(pickRidge(fig.ridges, 1, a.base - 5), null);
-  assert.equal(fig.data.length, 3);
+  assert.equal(fig.data.length, 6);
 });
 
-test('selected ridges take their colour; angle ridges keep isotropy at half height', () => {
-  const t = [{ ein: 1, x: Float64Array.from([-1, 1]), p: Float64Array.from([0.5, 0.5]), hist: false }];
+test('selected ridges take their colour; isotropic angle ridges are a quarter high', () => {
+  const t = [
+    { ein: 1, x: Float64Array.from([-1, 1]), p: Float64Array.from([0.5, 0.5]), hist: false },
+    { ein: 2, x: Float64Array.from([-1, 1]), p: Float64Array.from([0.5, 0.5]), hist: false },
+  ];
   const fig = buildRidgeline(t, { mode: 'angle', selected: new Map([[1, '#3987e5']]) });
-  assert.equal(fig.data[0].line.color, '#3987e5');
-  assert.deepEqual(fig.ridges[0].ys, [0.5, 0.5]);
+  // Drawn top down, two traces a ridge: fill then outline. The lowest ridge is selected.
+  assert.equal(fig.data.length, 4);
+  assert.equal(fig.data[2].fillcolor, blend('#3987e5', '#1a1a19', 0.8));
+  assert.notEqual(fig.data[0].fillcolor, fig.data[2].fillcolor);
+  assert.deepEqual(fig.ridges[0].ys, [0.25, 0.25]);
+  // Evenly spaced, labelled with their incident energies.
+  assert.deepEqual(fig.ridges.map((r) => r.base), [0, 1]);
+  assert.deepEqual(fig.layout.yaxis.ticktext, ['1 eV', '2 eV']);
 });
 
 test('the log range skips the negligible low-energy tail', () => {
-  const r = logRange([{ x: [1e-5, 1e3, 1e6, 2e6], y: [1e-12, 1e-3, 1, 0.5] }]);
-  assert.ok(r[0] > -1 && r[0] < 3.1);
+  // A histogram first bin from 1e-5 eV holding 1e-6 of the probability, as
+  // spectra in the data have: the axis starts where the probability does.
+  const r = logRange([{ x: [1e-5, 1e3, 1e3, 1e6, 2e6], y: [1e-15, 1e-15, 1e-6, 1, 0.5] }]);
+  assert.ok(r[0] > 2.5 && r[0] < 3.5, String(r));
   assert.ok(r[1] > Math.log10(2e6));
   assert.equal(logRange([{ x: [0], y: [1] }]), null);
 });
@@ -142,4 +153,17 @@ test('formatting', () => {
   assert.equal(formatEnergy(1e-5, 'MeV'), '1e-5 eV');
   assert.equal(formatEnergy(14e6, 'eV'), '1.4e7 eV');
   assert.equal(blend('#ffffff', '#000000', 0.5), '#808080');
+});
+
+test('thinning fills in where tabulated energies cluster', () => {
+  // Four sparse low energies, then a thousand between 1 and 10 MeV.
+  const eins = [1e-5, 1e-3, 1e-1, 1e1, ...Array.from({ length: 1000 }, (_, i) => 1e6 + 9e6 * (i / 999))];
+  const chosen = thin(tables(eins), 40);
+  assert.ok(chosen.length >= 36, String(chosen.length));
+  assert.ok(chosen.filter((i) => i >= 4).length >= 30);
+});
+
+test('quantile reads the probability below a point', () => {
+  assert.equal(quantile([0, 2], [1, 1], 0.25), 0.5);
+  assert.equal(quantile([0, 1], [0, 0], 0.5), null);
 });

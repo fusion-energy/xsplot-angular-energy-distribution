@@ -31,22 +31,36 @@ export function blend(colour, background, amount) {
   return `#${a.map((v, i) => Math.round(v * amount + b[i] * (1 - amount)).toString(16).padStart(2, '0')).join('')}`;
 }
 
-/// On a log outgoing-energy axis, the part of a spectrum below this fraction of
-/// its peak is not worth the axis room (tables often start at 1e-5 eV).
-export const LOG_RANGE_FRACTION = 1e-4;
-/// The span of x worth showing on a log axis: from the lowest x where any curve
-/// reaches LOG_RANGE_FRACTION of its own peak to the highest x drawn, as
-/// log10 values with a margin; null when nothing is positive.
+/// On a log outgoing-energy axis, the probability below which the low-energy
+/// tail of a spectrum is not worth the axis room. A table's first point is
+/// often 1e-5 eV, and on a log axis that alone would stretch the axis over ten
+/// empty decades.
+export const LOG_RANGE_QUANTILE = 1e-3;
+
+/// The x below which a fraction `q` of a curve's probability lies, with the
+/// density taken as linear between points; null if the curve has no area.
+export function quantile(x, y, q) {
+  let total = 0;
+  for (let i = 0; i + 1 < x.length; i++) total += 0.5 * (y[i] + y[i + 1]) * (x[i + 1] - x[i]);
+  if (!(total > 0)) return null;
+  let acc = 0;
+  for (let i = 0; i + 1 < x.length; i++) {
+    const piece = 0.5 * (y[i] + y[i + 1]) * (x[i + 1] - x[i]);
+    if (acc + piece >= q * total && piece > 0) return x[i] + ((q * total - acc) / piece) * (x[i + 1] - x[i]);
+    acc += piece;
+  }
+  return x[x.length - 1];
+}
+
+/// The span of x worth showing on a log axis: from the lowest x below which any
+/// curve holds LOG_RANGE_QUANTILE of its probability, to the highest x drawn,
+/// as log10 values with a margin; null when nothing is positive.
 export function logRange(curves) {
   let lo = Infinity, hi = -Infinity;
   for (const { x, y } of curves) {
-    let peak = 0;
-    for (let i = 0; i < y.length; i++) if (y[i] > peak) peak = y[i];
-    for (let i = 0; i < x.length; i++) {
-      if (!(x[i] > 0)) continue;
-      if (x[i] > hi) hi = x[i];
-      if (y[i] >= peak * LOG_RANGE_FRACTION && x[i] < lo) lo = x[i];
-    }
+    const q = quantile(x, y, LOG_RANGE_QUANTILE);
+    if (q !== null && q > 0 && q < lo) lo = q;
+    for (let i = 0; i < x.length; i++) if (x[i] > 0 && y[i] > 0 && x[i] > hi) hi = x[i];
   }
   if (!(lo < hi)) return null;
   const a = Math.log10(lo), b = Math.log10(hi);
