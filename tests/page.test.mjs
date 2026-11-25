@@ -120,14 +120,33 @@ test('selected ridges take their colour; isotropic angle ridges are a quarter hi
     { ein: 2, x: Float64Array.from([-1, 1]), p: Float64Array.from([0.5, 0.5]), hist: false },
   ];
   const fig = buildRidgeline(t, { mode: 'angle', selected: new Map([[1, '#3987e5']]) });
-  // Drawn top down, two traces a ridge: fill then outline. The lowest ridge is selected.
-  assert.equal(fig.data.length, 4);
-  assert.equal(fig.data[2].fillcolor, blend('#3987e5', '#1a1a19', 0.8));
+  // Two traces a ridge, then the selected row's band and its outline on top.
+  assert.equal(fig.data.length, 6);
+  assert.equal(fig.data[2].fillcolor, blend('#3987e5', '#1a1a19', 0.55));
   assert.notEqual(fig.data[0].fillcolor, fig.data[2].fillcolor);
+  assert.match(fig.data[4].fillcolor, /^rgba\(57, 135, 229, /);
+  assert.deepEqual(fig.data[5].line, { color: '#3987e5', width: 3, dash: 'solid' });
   assert.deepEqual(fig.ridges[0].ys, [0.25, 0.25]);
-  // Evenly spaced, labelled with their incident energies.
+  // Evenly spaced; the selected row's label is in its colour, and the plain
+  // label next to it is dropped so the two do not collide.
   assert.deepEqual(fig.ridges.map((r) => r.base), [0, 1]);
-  assert.deepEqual(fig.layout.yaxis.ticktext, ['1 eV', '2 eV']);
+  assert.deepEqual(fig.layout.yaxis.ticktext, ['<b><span style="color:#3987e5">1 eV</span></b>']);
+});
+
+test('curves from other reactions are overlaid on the nearest ridge, or counted out', () => {
+  const t = tables([1e6, 1e7, 2e7]);
+  const overlays = [
+    { ein: 1.05e7, colour: '#d95926', x: Float64Array.from([0, 1, 2]), p: Float64Array.from([0, 1, 0]), hist: false },
+    { ein: 1e9, colour: '#199e70', x: Float64Array.from([0, 1]), p: Float64Array.from([1, 1]), hist: false },
+  ];
+  const fig = buildRidgeline(t, { mode: 'energy', xLog: false, overlays });
+  assert.equal(fig.overlaid, 1);
+  assert.equal(fig.outside, 1);
+  const dotted = fig.data.filter((d) => d.line?.dash === 'dot');
+  assert.equal(dotted.length, 1);
+  // On the 10 MeV row (base 1), peaking at the ridge height above it.
+  assert.equal(Math.min(...dotted[0].y), 1);
+  assert.equal(Math.max(...dotted[0].y), 1 + fig.ridges[1].h);
 });
 
 test('the log range skips the negligible low-energy tail', () => {

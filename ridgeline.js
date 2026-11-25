@@ -24,6 +24,9 @@ const FLOOR_EV = 1e-5;
 /// distribution (0.5 everywhere) is a slim band at a quarter of the ridge
 /// height rather than a solid block.
 const ANGLE_PEAK_FLOOR = 2;
+/// How far (in log energy, a factor of about 1.5) beyond the drawn incident
+/// energies a curve from another reaction may be and still be overlaid.
+const OVERLAY_REACH = Math.log(1.5);
 
 /// Indices of `tables` to draw: all when there are at most `max`, otherwise
 /// about `max`, plus every table whose `ein` is in `keep`. Ascending.
@@ -98,6 +101,29 @@ function labelled(n, count) {
   return [...new Set(Array.from({ length: count }, (_, k) => Math.round(k * step)))];
 }
 
+/// `colour` (#rrggbb) at opacity `alpha`, as rgba.
+function rgba(colour, alpha) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/// A curve's drawn x values and heights as a fraction of its own peak (or of
+/// `floor`, whichever is larger), keeping only positive x on a log axis.
+function shape(t, scale, logX, floor) {
+  const steps = stepify(t.x, t.p, t.hist);
+  const xs = [], ys = [];
+  let peak = 0;
+  for (let j = 0; j < steps.x.length; j++) {
+    const x = steps.x[j] * scale;
+    if (logX && !(x > 0)) continue;
+    xs.push(x);
+    ys.push(steps.y[j]);
+    if (steps.y[j] > peak) peak = steps.y[j];
+  }
+  const norm = Math.max(peak, floor);
+  return { xs, ys: ys.map((y) => (norm > 0 ? y / norm : 0)) };
+}
+
 /// The ridgeline figure.
 ///
 /// `tables`: one mode's tables. `selected`: Map from a selected `ein` to its
@@ -107,11 +133,22 @@ function labelled(n, count) {
 /// placing ridges at their energy on a log axis left most of the plot empty and
 /// the rest crowded. Each ridge rises `overlap` spacings above its baseline.
 ///
-/// Returns `{data, layout, config, ridges}`, `ridges` ascending by incident
-/// energy, each `{ein, base, h, xs, ys}` with the drawn x values and the
-/// curve's height as a fraction of the ridge, for `pickRidge`.
+/// A selected ridge is filled and outlined in its curve's colour, its row is
+/// banded in that colour and its incident energy labelled in it, so it stands
+/// out whatever its shape: a forward-peaked angular distribution scaled to its
+/// own peak is a flat line with a spike, and its fill alone is a sliver.
+///
+/// `overlays`: selected curves from other reactions, `[{ein, colour, x, p,
+/// hist}]`, each drawn dotted on the row nearest its incident energy, so every
+/// curve in the selected panel shows on the ridgeline. One outside the drawn
+/// range by more than OVERLAY_REACH in energy is not drawn.
+///
+/// Returns `{data, layout, config, ridges, overlaid, outside}`, `ridges`
+/// ascending by incident energy, each `{ein, base, h, xs, ys}` with the drawn x
+/// values and the curve's height as a fraction of the ridge, for `pickRidge`;
+/// `overlaid` and `outside` count the overlays drawn and left out.
 export function buildRidgeline(tables, {
-  mode = 'energy', max = 40, selected = new Map(), xLog = true, energyUnit = 'eV', overlap = 2.4, xTitle = '',
+  mode = 'energy', max = 40, selected = new Map(), overlays = [], xLog = true, energyUnit = 'eV', overlap = 2.4, xTitle = '',
 } = {}) {
   const indices = thin(tables, max, new Set(selected.keys()));
   const scale = mode === 'energy' ? ENERGY_UNITS[energyUnit] ?? 1 : 1;
@@ -121,49 +158,70 @@ export function buildRidgeline(tables, {
 
   const ridges = [];
   for (const i of indices) {
-    const t = tables[i];
-    const steps = stepify(t.x, t.p, t.hist);
-    const xs = [], ys = [];
-    let peak = 0;
-    for (let j = 0; j < steps.x.length; j++) {
-      const x = steps.x[j] * scale;
-      if (logX && !(x > 0)) continue;
-      xs.push(x);
-      ys.push(steps.y[j]);
-      if (steps.y[j] > peak) peak = steps.y[j];
-    }
+    const { xs, ys } = shape(tables[i], scale, logX, peakFloor);
     if (!xs.length) continue;
-    const norm = Math.max(peak, peakFloor);
-    ridges.push({ ein: t.ein, base: ridges.length, h, xs, ys: ys.map((y) => (norm > 0 ? y / norm : 0)) });
+    ridges.push({ ein: tables[i].ein, base: ridges.length, h, xs, ys });
   }
+  const n = ridges.length;
+  const xRange = logX ? logRange(ridges.map((r) => ({ x: r.xs, y: r.ys }))) : null;
+  const allX = ridges.flatMap((r) => [r.xs[0], r.xs[r.xs.length - 1]]);
+  const [xLo, xHi] = mode === 'angle' ? [-1, 1] : xRange ? xRange.map((v) => Math.pow(10, v)) : [Math.min(...allX), Math.max(...allX)];
+  const curveY = (r, ys) => ys.map((f) => r.base + r.h * f);
+  const line = (x, y, color, width, dash = 'solid') => ({
+    type: 'scatter', mode: 'lines', x, y, line: { color, width, dash }, hoverinfo: 'skip', showlegend: false,
+  });
 
   // Highest first, so each lower ridge is drawn over the one above it. A ridge
   // is two traces: the filled shape with no outline, and the outline along the
   // curve alone, so no baseline is drawn under it.
-  const n = ridges.length;
   const data = [];
   for (const r of [...ridges].reverse()) {
     const colour = selected.get(r.ein);
-    const y = r.ys.map((f) => r.base + r.h * f);
+    const y = curveY(r, r.ys);
     data.push({
       type: 'scatter', mode: 'lines',
       x: [r.xs[0], ...r.xs, r.xs[r.xs.length - 1]],
       y: [r.base, ...y, r.base],
       fill: 'toself',
-      fillcolor: colour ? blend(colour, SURFACE, 0.8) : rampColour(n > 1 ? r.base / (n - 1) : 0.5),
+      fillcolor: colour ? blend(colour, SURFACE, 0.55) : rampColour(n > 1 ? r.base / (n - 1) : 0.5),
       line: { width: 0 },
       hoverinfo: 'skip', showlegend: false,
     });
+    data.push(line(r.xs, y, OUTLINE, 1));
+  }
+  // Over everything: a translucent band along each selected row, then its
+  // outline again, so the ridges in front cannot hide it.
+  const lit = ridges.filter((r) => selected.has(r.ein));
+  for (const r of lit) {
     data.push({
       type: 'scatter', mode: 'lines',
-      x: r.xs, y,
-      line: { color: colour ? '#ffffff' : OUTLINE, width: colour ? 2 : 1 },
+      x: [xLo, xHi, xHi, xLo, xLo], y: [r.base - 0.15, r.base - 0.15, r.base + 0.85, r.base + 0.85, r.base - 0.15],
+      fill: 'toself', fillcolor: rgba(selected.get(r.ein), 0.28), line: { width: 0 },
       hoverinfo: 'skip', showlegend: false,
     });
   }
+  for (const r of lit) data.push(line(r.xs, curveY(r, r.ys), selected.get(r.ein), 3));
 
-  const xRange = logX ? logRange(ridges.map((r) => ({ x: r.xs, y: r.ys }))) : null;
-  const ticks = labelled(n, 12);
+  let overlaid = 0, outside = 0;
+  if (n) {
+    const lo = Math.log(Math.max(ridges[0].ein, 1e-12)), hi = Math.log(Math.max(ridges[n - 1].ein, 1e-12));
+    for (const o of overlays) {
+      const e = Math.log(Math.max(o.ein, 1e-12));
+      if (e < lo - OVERLAY_REACH || e > hi + OVERLAY_REACH) { outside++; continue; }
+      const row = ridges.reduce((a, r) => (Math.abs(Math.log(Math.max(r.ein, 1e-12)) - e) < Math.abs(Math.log(Math.max(a.ein, 1e-12)) - e) ? r : a));
+      const { xs, ys } = shape(o, scale, logX, peakFloor);
+      if (!xs.length) { outside++; continue; }
+      data.push(line(xs, curveY(row, ys), o.colour, 2.5, 'dot'));
+      overlaid++;
+    }
+  }
+
+  // Label some rows evenly, and every selected row in its colour, dropping an
+  // even label that would sit on top of a selected one.
+  const litBases = new Set(lit.map((r) => r.base));
+  const ticks = labelled(n, 12).filter((k) => litBases.has(k) || ![...litBases].some((b) => Math.abs(b - k) <= 1));
+  for (const b of litBases) if (!ticks.includes(b)) ticks.push(b);
+  ticks.sort((a, b) => a - b);
   const layout = {
     paper_bgcolor: SURFACE,
     plot_bgcolor: SURFACE,
@@ -182,7 +240,11 @@ export function buildRidgeline(tables, {
       type: 'linear',
       range: [-0.4, Math.max(n - 1, 0) + h + 0.2],
       tickvals: ticks.map((k) => ridges[k].base),
-      ticktext: ticks.map((k) => formatEnergy(ridges[k].ein, energyUnit)),
+      ticktext: ticks.map((k) => {
+        const text = formatEnergy(ridges[k].ein, energyUnit);
+        const colour = selected.get(ridges[k].ein);
+        return colour ? `<b><span style="color:${colour}">${text}</span></b>` : text;
+      }),
       showgrid: false, zeroline: false, linecolor: GRID,
       tickfont: { color: INK_SECONDARY },
       title: { text: 'Incident energy', font: { color: INK } },
@@ -194,7 +256,7 @@ export function buildRidgeline(tables, {
     shapes: [],
   };
   const config = { responsive: true, displaylogo: false, displayModeBar: false, staticPlot: false };
-  return { data, layout, config, ridges };
+  return { data, layout, config, ridges, overlaid, outside };
 }
 
 /// The ridge under the cursor at (`x`, `y`) in data coordinates: among ridges

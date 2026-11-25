@@ -282,9 +282,22 @@ function emptyFigure(message) {
   };
 }
 
+/// Selected curves of the current mode from other reactions than the ridgeline
+/// shows, once loaded, to overlay on it.
+function overlaysForView() {
+  const out = [];
+  for (const s of state[state.mode]) {
+    if (sameView(s, state.view)) continue;
+    const c = curves.get(selKey(state.mode, s));
+    if (c) out.push({ ein: c.ein, x: c.x, p: c.p, hist: c.hist, colour: styleFor(slotOf(selKey(state.mode, s))).color });
+  }
+  return out;
+}
+
 function drawRidgeline() {
   const note = $('ridge-note');
   note.classList.add('d-none');
+  $('overlay-note').textContent = '';
   currentRidges = [];
   hovered = null;
   $('hover-label').textContent = '';
@@ -303,11 +316,15 @@ function drawRidgeline() {
       const titles = axisTitles(state.mode, state.energyUnit);
       const frame = frameShort(currentView);
       fig = buildRidgeline(mode.tables, {
-        mode: state.mode, max: state.ridges, selected: selectedInView(),
+        mode: state.mode, max: state.ridges, selected: selectedInView(), overlays: overlaysForView(),
         xLog: state.xLog, energyUnit: state.energyUnit,
         xTitle: frame ? `${titles.x} (${frame})` : titles.x,
       });
       currentRidges = fig.ridges;
+      const parts = [];
+      if (fig.overlaid) parts.push(`Dotted: ${fig.overlaid} selected curve${fig.overlaid === 1 ? '' : 's'} from other reactions or libraries, drawn on the ridge nearest ${fig.overlaid === 1 ? 'its' : 'their'} incident energy.`);
+      if (fig.outside) parts.push(`${fig.outside} selected curve${fig.outside === 1 ? ' is' : 's are'} outside this reaction's incident energies and not drawn here.`);
+      $('overlay-note').textContent = parts.join(' ');
     }
   }
   Plotly.react('ridgeline', fig.data, fig.layout, fig.config);
