@@ -58,7 +58,7 @@ test('the URL round-trips and leaves defaults out', () => {
     mode: 'angle',
     energy: [{ library: 'endf-b8.1', name: 'Fe56', mt: 16, delayed: false, ein: 14e6 }],
     angle: [{ library: 'jeff-4.0', name: 'Am242_m1', mt: 2, delayed: false, ein: 9.999999999999999e-6 }],
-    xLog: false, yLog: true, energyUnit: 'MeV', ridges: 80,
+    xLog: false, yLog: false, energyUnit: 'MeV', ridges: 80,
   };
   const hash = encodeState(state);
   assert.match(hash, /a=jeff-4\.0:Am242_m1:2:0\.00001(&|$)/);
@@ -68,7 +68,9 @@ test('the URL round-trips and leaves defaults out', () => {
   assert.deepEqual(back.energy, state.energy);
   assert.equal(back.angle[0].ein, 1e-5);
   assert.equal(back.xLog, false);
-  assert.equal(back.yLog, true);
+  assert.equal(back.yLog, false);
+  assert.match(hash, /y=lin/);
+  assert.equal(decodeState('').yLog, true);
   assert.equal(back.energyUnit, 'MeV');
   assert.equal(back.ridges, 80);
   assert.deepEqual([...back.libraries], ['endf-b8.1', 'jeff-4.0']);

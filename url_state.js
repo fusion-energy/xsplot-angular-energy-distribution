@@ -2,7 +2,7 @@
 // modes and the axis settings, in the hash, so a plot can be linked and comes
 // back on reload.
 //
-//   #v=endf-b8.1:Fe56:16&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&a=endf-b8.1:Fe56:2:1000000&m=angle&x=lin&y=log&e=MeV&n=80&l=endf-b8.1,jeff-4.0
+//   #v=endf-b8.1:Fe56:16&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&a=endf-b8.1:Fe56:2:1000000&m=angle&x=lin&y=lin&e=MeV&n=80&l=endf-b8.1,jeff-4.0
 //
 //   v  the ridgeline: library:nuclide:reaction, the reaction an MT with a `d`
 //      for the delayed neutrons of fission (18d)
@@ -10,7 +10,7 @@
 //      library:nuclide:reaction:incident energy in eV
 //   a  the same for angle mode
 //   m  `angle` when angle mode is showing (energy is the default)
-//   x  `lin` for a linear outgoing-energy axis, y `log` for a log density axis
+//   x  `lin` for a linear outgoing-energy axis, y `lin` for a linear density axis
 //   e  `MeV` for energies in MeV (eV is the default)
 //   n  ridges drawn (40 is the default)
 //   l  libraries listed in the table (all is the default)
@@ -68,7 +68,7 @@ export function encodeState(state) {
   if (state.angle.length) parts.push(`a=${state.angle.map(selectionText).join(';')}`);
   if (state.mode === 'angle') parts.push('m=angle');
   if (!state.xLog) parts.push('x=lin');
-  if (state.yLog) parts.push('y=log');
+  if (!state.yLog) parts.push('y=lin');
   if (state.energyUnit === 'MeV') parts.push('e=MeV');
   if (state.ridges !== DEFAULT_RIDGES) parts.push(`n=${state.ridges}`);
   const libs = LIBRARIES.map((l) => l.id).filter((id) => state.libraries.has(id));
@@ -85,7 +85,7 @@ export function decodeState(hash) {
     energy: [],
     angle: [],
     xLog: true,
-    yLog: false,
+    yLog: true,
     energyUnit: 'eV',
     ridges: DEFAULT_RIDGES,
   };
@@ -101,7 +101,7 @@ export function decodeState(hash) {
   state.angle = parseSelections(fields.get('a'));
   if (fields.get('m') === 'angle') state.mode = 'angle';
   if (fields.get('x') === 'lin') state.xLog = false;
-  if (fields.get('y') === 'log') state.yLog = true;
+  if (fields.get('y') === 'lin') state.yLog = false;
   if (fields.get('e') === 'MeV') state.energyUnit = 'MeV';
   const n = Number(fields.get('n'));
   if (RIDGE_CHOICES.includes(n)) state.ridges = n;

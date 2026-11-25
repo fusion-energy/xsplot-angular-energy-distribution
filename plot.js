@@ -63,7 +63,7 @@ export function axisTitles(mode, energyUnit) {
 
 /// `series`: array of {name, x, p, hist, slot}, energies in eV and densities
 /// per eV in energy mode. Returns {data, layout, config}.
-export function buildSelectedFigure(series, { mode = 'energy', xLog = true, yLog = false, energyUnit = 'eV' } = {}) {
+export function buildSelectedFigure(series, { mode = 'energy', xLog = true, yLog = true, energyUnit = 'eV' } = {}) {
   const scale = mode === 'energy' ? ENERGY_UNITS[energyUnit] ?? 1 : 1;
   const logX = mode === 'energy' && xLog;
   const titles = axisTitles(mode, energyUnit);
