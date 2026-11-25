@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neutron angle and energy distribution plotter</title>
+    <meta name="description" content="Plot the outgoing energy and angle of the neutrons that nuclear reactions emit, from six evaluated nuclear data libraries.">
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="./vendor/bootstrap-5.3.3.min.css">
+    <link rel="stylesheet" href="./style.css">
+    <script src="./vendor/plotly-2.26.0.min.js"></script>
+    <script type="module" src="./app.js"></script>
+</head>
+<body>
+<main class="container-xxl py-3">
+    <h1 class="text-center mb-1">Neutron Angle &amp; Energy Distribution Plotter</h1>
+    <p class="subtitle text-center mb-1">Where the neutrons from a nuclear reaction go, and how fast: outgoing energy and angle distributions from six nuclear data libraries, by Jon Shimwell. See my other projects on <a href="https://xsplot.com/" target="_blank" rel="noopener">xsplot.com</a></p>
+    <p class="subtitle text-center mb-3 examples" id="examples">Example plots:
+        <a href="#v=endf-b8.1:Fe56:16&amp;e=MeV&amp;s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000;tendl-2025:Fe56:16:14000000" data-example="1">[1] Fe56 (n,2n) at 14 MeV, three libraries</a> ·
+        <a href="#v=endf-b8.1:Fe56:2&amp;m=angle&amp;e=MeV&amp;a=endf-b8.1:C12:2:14000000;endf-b8.1:Fe56:2:14000000;endf-b8.1:Pb208:2:14000000" data-example="2">[2] elastic scattering angle, light to heavy</a> ·
+        <a href="#v=endf-b8.1:Be9:16&amp;e=MeV&amp;s=endf-b8.1:Be9:16:14000000;endf-b8.1:Pb208:16:14000000" data-example="3">[3] neutron multipliers</a> ·
+        <a href="#v=endf-b8.1:U235:18&amp;e=MeV&amp;s=endf-b8.1:U235:18:0.00001;endf-b8.1:U235:18:14000000;endf-b8.1:U235:18d:0.00001" data-example="4">[4] fission neutron spectra</a> ·
+        <a href="#v=endf-b8.1:Fe56:51&amp;m=angle&amp;e=MeV&amp;a=endf-b8.1:Fe56:51:2000000;endf-b8.1:Fe56:51:5000000;endf-b8.1:Fe56:51:14000000" data-example="5">[5] inelastic scattering to the first level</a>
+    </p>
+
+    <section aria-labelledby="pick-heading">
+        <h2 id="pick-heading" class="h6 section-title">1. Pick a reaction <span class="text-secondary fw-normal">— click a row to show its distributions below</span></h2>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover align-middle mb-2" id="reactions">
+                <thead>
+                <tr>
+                    <th scope="col" title="Click a row to show that reaction's distributions in the ridgeline below.">Show</th>
+                    <th scope="col" title="Chemical symbol of the target nuclide.">Element</th>
+                    <th scope="col" title="Mass number of the target nuclide (protons plus neutrons). m1 marks a metastable state, e.g. 242 m1 is Am-242m.">Nucleons</th>
+                    <th scope="col" title="The reaction channel in ENDF notation: (n,2n) is a neutron in and two neutrons out, (n,n1) inelastic scattering to the first excited level, (n,nc) to the continuum. Only reactions that emit neutrons are listed. Fission is listed twice, for its prompt and its delayed neutrons. Brackets are optional when searching, and the product alone works (2n, elastic, fission).">Reaction</th>
+                    <th scope="col" title="The ENDF MT number that identifies the reaction: 2 elastic, 16 (n,2n), 18 fission, 51 to 90 inelastic scattering to individual levels, 91 to the continuum.">MT</th>
+                    <th scope="col" title="The evaluated nuclear data library. Use the dropdown to choose which libraries are listed; the same reaction from two libraries is two rows.">Library</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th><input class="form-control form-control-sm filter-input" data-column="element" placeholder="e.g. Fe" aria-label="filter element"></th>
+                    <th><input class="form-control form-control-sm filter-input" data-column="nucleons" placeholder="e.g. 56" aria-label="filter nucleons"></th>
+                    <th><input class="form-control form-control-sm filter-input" data-column="reaction" placeholder="e.g. (n,2n)" aria-label="filter reaction"></th>
+                    <th><input class="form-control form-control-sm filter-input" data-column="mt" placeholder="e.g. 16" aria-label="filter MT"></th>
+                    <th>
+                        <button id="library-filter" class="form-select form-select-sm text-start check-filter" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="library-menu">All libraries</button>
+                        <div id="library-menu" class="check-menu d-none" role="group" aria-label="libraries to show"></div>
+                    </th>
+                </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <nav aria-label="reaction pages"><ul id="pagination" class="pagination pagination-sm mb-0"></ul></nav>
+            <span id="counter" class="mono"></span>
+        </div>
+    </section>
+
+    <section aria-labelledby="view-heading">
+        <h2 id="view-heading" class="h6 section-title">2. Pick incident energies <span class="text-secondary fw-normal">— click ridges to add them to the plot on the right</span></h2>
+        <div class="d-flex flex-wrap align-items-center gap-2 toolbar mb-2">
+            <div class="btn-group" role="group" aria-label="what to plot">
+                <input type="radio" class="btn-check" name="mode" id="mode-energy" value="energy" autocomplete="off" checked>
+                <label class="btn btn-outline-light" for="mode-energy" title="Probability density of the outgoing neutron's energy, for each incident energy">Outgoing energy</label>
+                <input type="radio" class="btn-check" name="mode" id="mode-angle" value="angle" autocomplete="off">
+                <label class="btn btn-outline-light" for="mode-angle" title="Probability density of the cosine of the outgoing neutron's angle to the incident direction, for each incident energy">Angle</label>
+            </div>
+            <button id="x-scale" class="btn btn-outline-light" type="button" title="Toggle the outgoing-energy axis between log and linear">X: log</button>
+            <button id="y-scale" class="btn btn-outline-light" type="button" title="Toggle the probability density axis of the right-hand plot between log and linear">Y: linear</button>
+            <button id="x-unit" class="btn btn-outline-light" type="button" title="Show energies in eV or MeV (downloads are always in eV)">Energy: eV</button>
+            <label class="d-flex align-items-center gap-1 small" for="ridge-count" title="How many incident energies the ridgeline draws at most, evenly spaced in log energy. Selected ones are always drawn.">Ridges
+                <select id="ridge-count" class="form-select form-select-sm w-auto"></select>
+            </label>
+            <span id="busy" class="d-none ms-2" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span><span id="busy-text">Loading...</span>
+            </span>
+        </div>
+        <div id="progress-wrap" class="d-none mb-2" role="status">
+            <div class="small mb-1" id="progress-text"></div>
+            <div class="progress" role="progressbar" aria-label="download progress" aria-valuemin="0" aria-valuemax="100">
+                <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+            </div>
+        </div>
+        <div id="view-title" class="view-title mb-1"></div>
+        <div id="view-notes" class="small text-secondary mb-2"></div>
+        <div id="notice" class="d-none alert alert-secondary py-2 mb-2 small"></div>
+        <div id="error" class="d-none alert alert-danger py-2 mb-2 small" role="alert"></div>
+
+        <div class="row g-3">
+            <div class="col-xl-6">
+                <div class="panel-head d-flex justify-content-between align-items-baseline">
+                    <span class="panel-title">Ridgeline · shape at each incident energy</span>
+                    <span id="hover-label" class="small mono" aria-live="polite"></span>
+                </div>
+                <div id="ridgeline" class="plot rounded" aria-label="ridgeline of the distribution at each incident energy; click a ridge to select it"></div>
+                <div id="ridge-note" class="ridge-note d-none"></div>
+                <form id="ein-form" class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                    <label for="ein-value" class="small">Add incident energy</label>
+                    <input id="ein-value" class="form-control form-control-sm w-auto" type="number" step="any" min="0" placeholder="14.1" aria-describedby="ein-help">
+                    <select id="ein-unit" class="form-select form-select-sm w-auto" aria-label="unit">
+                        <option value="1">eV</option>
+                        <option value="1000">keV</option>
+                        <option value="1000000" selected>MeV</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-light" type="submit">Add</button>
+                    <span id="ein-help" class="small text-secondary">snaps to the nearest tabulated energy</span>
+                </form>
+                <details class="mt-2" id="ridge-list-wrap">
+                    <summary class="small">List of the ridges drawn</summary>
+                    <div id="ridge-list" class="ridge-list small mono"></div>
+                </details>
+            </div>
+            <div class="col-xl-6">
+                <div class="panel-head d-flex justify-content-between align-items-baseline">
+                    <span class="panel-title">Selected · probability density</span>
+                    <span class="d-flex gap-2">
+                        <button id="clear" class="btn btn-sm btn-outline-light" type="button">Clear</button>
+                        <button id="download-json" class="btn btn-sm btn-primary" type="button" disabled>JSON</button>
+                        <button id="download-csv" class="btn btn-sm btn-primary" type="button" disabled>CSV</button>
+                    </span>
+                </div>
+                <div id="selected" class="plot rounded"></div>
+                <table class="table table-dark table-sm align-middle mt-2 mb-0 selected-table" aria-label="selected curves">
+                    <tbody id="selected-rows"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <footer class="mt-4 pt-3 border-top border-secondary small text-center">
+        Data: the Arrow files at <a href="https://yamc-data.xsplot.com/" target="_blank" rel="noopener">yamc-data.xsplot.com</a>, read by
+        <a href="https://github.com/fusion-neutronics/yamc-and-yani" target="_blank" rel="noopener">yamc</a>
+        &middot;
+        <a href="./privacy.html">Privacy</a>
+        &middot;
+        <a href="https://github.com/fusion-energy/xsplot-angular-energy-distribution" target="_blank" rel="noopener">Source</a>
+    </footer>
+</main>
+</body>
+</html>

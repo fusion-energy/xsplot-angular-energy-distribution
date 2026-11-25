@@ -1,0 +1,65 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests (distributions, table, URL state, ridgeline)
+        run: npm test
+      - name: Install Chromium for the end-to-end run
+        run: npx playwright install --with-deps chromium
+      # Drives the page against the published data, as materials_for_mc_online
+      # does: the distributions are tens of MB per nuclide, too much for
+      # fixtures. A failure that names a fetch rather than an assertion is the
+      # data host, not the page.
+      - name: End-to-end against the published data
+        run: |
+          python3 -m http.server 8000 --bind 127.0.0.1 &
+          sleep 1
+          node tests/e2e.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: tests/screenshots/
+          if-no-files-found: ignore
+
+  deploy:
+    # The site is the repository itself: no build step, so the checkout is the
+    # artifact. A fresh checkout has no node_modules.
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,199 @@
+/* xsplot.com: a dark Bootstrap page with the gradient it has always had. */
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(to bottom right, #444444, #009a5b) fixed;
+  font-size: 1rem;
+}
+
+main {
+  color: #fff6d5;
+}
+
+main a {
+  color: #ffe9a8;
+}
+
+h1 {
+  font-size: 1.9rem;
+}
+
+/* Bootstrap's secondary grey is too faint on the green; this one is not. */
+main .text-secondary {
+  color: #d6d0bb !important;
+}
+
+.subtitle {
+  color: #e6e0cc;
+  font-style: italic;
+}
+
+/* Filter boxes sit in the header row of the table, one per column. A box with
+   something typed in it, or a dropdown that narrows the list, is bold on a
+   blue field so an active filter cannot be mistaken for a placeholder. */
+.filter-input {
+  min-width: 6rem;
+}
+
+.filter-input::placeholder {
+  color: #7d838c;
+  font-style: italic;
+  opacity: 1;
+}
+
+.filter-input:not(:placeholder-shown),
+.check-filter.narrowed {
+  color: #ffffff;
+  font-weight: 600;
+  background-color: #1d3e66;
+  border-color: #3987e5;
+}
+
+.filter-input:not(:placeholder-shown):focus,
+.check-filter.narrowed:focus {
+  background-color: #1d3e66;
+  color: #ffffff;
+}
+
+/* The library filter is a dropdown of checkboxes. The menu is
+   fixed to the viewport so the scrolling table wrapper cannot clip it. */
+.check-filter {
+  min-width: 9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.check-menu {
+  position: fixed;
+  z-index: 1050;
+  min-width: 12rem;
+  padding: 0.4rem 0.6rem;
+  background: #212529;
+  border: 1px solid #495057;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
+}
+
+.check-menu .form-check {
+  margin: 0.15rem 0;
+}
+
+.check-menu .form-check-label {
+  cursor: pointer;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable .sort-icon {
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.6;
+}
+
+.form-check-input.row-select {
+  width: 1.4rem;
+  height: 1.4rem;
+  cursor: pointer;
+}
+
+#error {
+  white-space: pre-wrap;
+}
+
+.check-row .form-check {
+  margin-right: 1rem;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- this page ------------------------------------------------------------ */
+
+.section-title {
+  color: #fff6d5;
+  margin-top: 0.5rem;
+}
+
+.view-title {
+  font-weight: 600;
+  min-height: 1.5em;
+}
+
+.panel-title {
+  font-size: 0.9rem;
+  color: #e6e0cc;
+}
+
+.plot {
+  width: 100%;
+  height: 620px;
+}
+
+#ridgeline {
+  cursor: pointer;
+}
+
+/* Shown over the ridgeline when the reaction has nothing to draw in this mode. */
+.ridge-note {
+  margin-top: -620px;
+  height: 620px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: #c3c2b7;
+  position: relative;
+  pointer-events: none;
+}
+
+.ridge-list {
+  max-height: 14rem;
+  overflow-y: auto;
+  columns: 3 9rem;
+  padding: 0.4rem 0;
+}
+
+.ridge-list .form-check {
+  break-inside: avoid;
+}
+
+.swatch {
+  display: inline-block;
+  width: 1.6rem;
+  height: 0.3rem;
+  border-radius: 0.15rem;
+  vertical-align: middle;
+}
+
+.selected-table td {
+  background: transparent;
+}
+
+tr.current-view td {
+  background-color: #1d3e66 !important;
+}
+
+.row-show {
+  white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+  .plot {
+    height: 460px;
+  }
+  .ridge-note {
+    margin-top: -460px;
+    height: 460px;
+  }
+}
