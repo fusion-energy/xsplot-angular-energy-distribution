@@ -190,7 +190,7 @@ function uncorrelatedEnergy(row) {
   switch (kind) {
     case null:
     case undefined:
-      return emptyMode('This reaction tabulates no outgoing-energy distribution. For elastic scattering the outgoing energy follows from the scattering angle alone, so its angular distribution (Angle mode) is the whole story.');
+      return emptyMode('This reaction has no outgoing energy data: for elastic scattering the outgoing energy follows from the scattering angle.');
     case 'continuous': {
       const { tables, dropped, placeholders } = packedTables(row.energy_dist_energies, row.energy_dist_data, row.energy_dist_offsets,
         row.energy_dist_out_interp, 3, row.energy_dist_n_discrete, true);

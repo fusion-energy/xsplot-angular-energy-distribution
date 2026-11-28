@@ -295,6 +295,40 @@ function overlaysForView() {
   return out;
 }
 
+/// What each mode draws, as the note over an empty ridgeline names it.
+const MODE_DATA = { energy: 'outgoing energy data', angle: 'angle data' };
+
+/// The note shown when the reaction has nothing to draw in this mode. When the
+/// other mode has data it says so, with a button that switches to it.
+function fillEmptyNote(note) {
+  const other = state.mode === 'energy' ? 'angle' : 'energy';
+  note.replaceChildren();
+  if (!currentView[other].tables.length) {
+    note.textContent = currentView[state.mode].note ?? 'Nothing to draw in this mode.';
+    return;
+  }
+  const text = document.createElement('div');
+  text.textContent = `This reaction has no ${MODE_DATA[state.mode]}, but it does have ${MODE_DATA[other]}.`;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'ridge-note-toggle';
+  button.className = 'btn btn-sm btn-outline-light mt-2';
+  button.textContent = `Toggle to ${MODE_DATA[other]}`;
+  button.addEventListener('click', () => setMode(other));
+  note.append(text, button);
+}
+
+/// Show one mode: its ridgeline, its selection and its notes.
+function setMode(mode) {
+  state.mode = mode;
+  clearErrors();
+  renderControls();
+  renderViewInfo();
+  drawRidgeline();
+  updateSelected();
+  syncUrl();
+}
+
 function drawRidgeline() {
   const note = $('ridge-note');
   note.classList.add('d-none');
@@ -311,7 +345,7 @@ function drawRidgeline() {
     const mode = currentView[state.mode];
     if (!mode.tables.length) {
       fig = emptyFigure('');
-      note.textContent = mode.note ?? 'Nothing to draw in this mode.';
+      fillEmptyNote(note);
       note.classList.remove('d-none');
     } else {
       const titles = axisTitles(state.mode, state.energyUnit);
@@ -653,15 +687,7 @@ function buildControls() {
   });
 
   for (const mode of MODES) {
-    $(`mode-${mode}`).addEventListener('change', () => {
-      state.mode = mode;
-      clearErrors();
-      renderControls();
-      renderViewInfo();
-      drawRidgeline();
-      updateSelected();
-      syncUrl();
-    });
+    $(`mode-${mode}`).addEventListener('change', () => setMode(mode));
   }
   $('x-scale').addEventListener('click', () => { state.xLog = !state.xLog; renderControls(); drawRidgeline(); drawSelected(); syncUrl(); });
   $('y-scale').addEventListener('click', () => { state.yLog = !state.yLog; renderControls(); drawSelected(); syncUrl(); });

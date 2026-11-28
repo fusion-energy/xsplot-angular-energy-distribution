@@ -17,11 +17,11 @@
     <p class="subtitle text-center mb-1">Where the neutrons from a nuclear reaction go, and how fast: outgoing energy and angle distributions, by Jon Shimwell. See my other projects on <a href="https://xsplot.com/" target="_blank" rel="noopener">xsplot.com</a></p>
     <p class="subtitle text-center mb-1">The distributions come from six evaluated nuclear data libraries. If you use them, please <button type="button" class="link-button" data-scroll-to="cite">cite the libraries</button>.</p>
     <p class="subtitle text-center mb-3 examples" id="examples">Example plots:
-        <a href="#v=endf-b8.1:Fe56:16&amp;e=MeV&amp;s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000;tendl-2025:Fe56:16:14000000" data-example="1">[1] Fe56 (n,2n) at 14 MeV, 3 libraries</a> ·
-        <a href="#v=endf-b8.1:Fe56:2&amp;m=angle&amp;e=MeV&amp;a=endf-b8.1:C12:2:14000000;endf-b8.1:Fe56:2:14000000;endf-b8.1:Pb208:2:14000000" data-example="2">[2] elastic scattering angle, light to heavy</a> ·
-        <a href="#v=endf-b8.1:Be9:16&amp;e=MeV&amp;s=endf-b8.1:Be9:16:14000000;endf-b8.1:Pb208:16:14000000" data-example="3">[3] neutron multipliers</a> ·
-        <a href="#v=endf-b8.1:U235:18&amp;e=MeV&amp;s=endf-b8.1:U235:18:0.00001;endf-b8.1:U235:18:14000000;endf-b8.1:U235:18d:0.00001" data-example="4">[4] fission neutron spectra</a> ·
-        <a href="#v=endf-b8.1:Fe56:51&amp;m=angle&amp;e=MeV&amp;a=endf-b8.1:Fe56:51:2000000;endf-b8.1:Fe56:51:5000000;endf-b8.1:Fe56:51:14000000" data-example="5">[5] inelastic scattering to level 1</a>
+        <a href="#v=endf-b8.1:Fe56:16&amp;m=energy&amp;e=MeV&amp;s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000;tendl-2025:Fe56:16:14000000" data-example="1">[1] Fe56 (n,2n) at 14 MeV, 3 libraries</a> ·
+        <a href="#v=endf-b8.1:Fe56:2&amp;e=MeV&amp;a=endf-b8.1:C12:2:14000000;endf-b8.1:Fe56:2:14000000;endf-b8.1:Pb208:2:14000000" data-example="2">[2] elastic scattering angle, light to heavy</a> ·
+        <a href="#v=endf-b8.1:Be9:16&amp;m=energy&amp;e=MeV&amp;s=endf-b8.1:Be9:16:14000000;endf-b8.1:Pb208:16:14000000" data-example="3">[3] neutron multipliers</a> ·
+        <a href="#v=endf-b8.1:U235:18&amp;m=energy&amp;e=MeV&amp;s=endf-b8.1:U235:18:0.00001;endf-b8.1:U235:18:14000000;endf-b8.1:U235:18d:0.00001" data-example="4">[4] fission neutron spectra</a> ·
+        <a href="#v=endf-b8.1:Fe56:51&amp;e=MeV&amp;a=endf-b8.1:Fe56:51:2000000;endf-b8.1:Fe56:51:5000000;endf-b8.1:Fe56:51:14000000" data-example="5">[5] inelastic scattering to level 1</a>
     </p>
 
     <section aria-labelledby="pick-heading">
@@ -62,9 +62,9 @@
         <h2 id="view-heading" class="h6 section-title">2. Pick incident energies <span class="text-secondary fw-normal">— click ridges to add them to the plot on the right</span></h2>
         <div class="d-flex flex-wrap align-items-center gap-2 toolbar mb-2">
             <div class="btn-group" role="group" aria-label="what to plot">
-                <input type="radio" class="btn-check" name="mode" id="mode-energy" value="energy" autocomplete="off" checked>
+                <input type="radio" class="btn-check" name="mode" id="mode-energy" value="energy" autocomplete="off">
                 <label class="btn btn-outline-light" for="mode-energy" title="Probability density of the outgoing neutron's energy, for each incident energy">Outgoing energy</label>
-                <input type="radio" class="btn-check" name="mode" id="mode-angle" value="angle" autocomplete="off">
+                <input type="radio" class="btn-check" name="mode" id="mode-angle" value="angle" autocomplete="off" checked>
                 <label class="btn btn-outline-light" for="mode-angle" title="Probability density of the cosine of the outgoing neutron's angle to the incident direction, for each incident energy">Angle</label>
             </div>
             <button id="x-scale" class="btn btn-outline-light" type="button" title="Toggle the outgoing-energy axis between log and linear">X: log</button>
