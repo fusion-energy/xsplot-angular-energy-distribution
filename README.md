@@ -46,7 +46,7 @@ listed. See `url_state.js`.
 
 The distributions are read from each nuclide's `products.arrow` and
 `distributions.arrow`, the same files the
-[yamc](https://github.com/fusion-neutronics/yamc-and-yani) Monte Carlo code
+yamc Monte Carlo code
 samples from, and unpacked the way its reader
 (`crates/yamc-nuclide/src/arrow/nuclide_arrow.rs`) does:
 
