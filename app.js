@@ -4,7 +4,7 @@
 // this file owns the DOM.
 
 import { LIBRARIES, libraryLabel } from './libraries.js';
-import { rowsOfIndex, mergeRows, filterRows, paginate, rowId } from './table.js';
+import { rowsOfIndex, mergeRows, filterRows, dropMissingDelayed, paginate, rowId } from './table.js';
 import { reactionName, choiceId } from './reactions.js';
 import { encodeState, decodeState, RIDGE_CHOICES, selectionText } from './url_state.js';
 import { buildRidgeline, pickRidge, formatEnergy } from './ridgeline.js';
@@ -142,6 +142,30 @@ function loadEnabledLibraries() {
   for (const lib of LIBRARIES) if (state.libraries.has(lib.id)) loadIndex(lib.id);
 }
 
+/// The MTs with delayed neutron data, by `library/name`, for the nuclides
+/// checked so far, and the checks in flight.
+const delayedData = new Map();
+const delayedChecking = new Set();
+
+/// The index lists a delayed-fission row for every fission MT, whether or not
+/// the evaluation has delayed neutron data. Check the nuclides of the delayed
+/// rows on screen, from their small products file, and drop the rows that
+/// have none, so they are never offered.
+function checkDelayedRows(rows) {
+  for (const r of rows) {
+    if (!r.delayed) continue;
+    const library = LIBRARIES[r.lib].id;
+    const key = `${library}/${r.name}`;
+    if (delayedData.has(key) || delayedChecking.has(key)) continue;
+    delayedChecking.add(key);
+    ask('delayed', { library, name: r.name })
+      .then(({ mts }) => { delayedData.set(key, new Set(mts)); renderTable(); })
+      // A failed check keeps the row; showing it reports what went wrong.
+      .catch(() => {})
+      .finally(() => delayedChecking.delete(key));
+  }
+}
+
 function renderTable() {
   const tbody = $('rows');
   if (!allRows.length) {
@@ -149,8 +173,9 @@ function renderTable() {
     $('pagination').innerHTML = '';
     return;
   }
-  filtered = filterRows(allRows, state.filters, state.libraries);
+  filtered = dropMissingDelayed(filterRows(allRows, state.filters, state.libraries), delayedData);
   const page = paginate(filtered, state.page, PAGE_SIZE);
+  checkDelayedRows(page.rows);
   state.page = page.page;
   const current = state.view ? viewKey(state.view) : null;
   const html = page.rows.map((r) => {

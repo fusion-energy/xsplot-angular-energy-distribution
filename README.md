@@ -77,7 +77,11 @@ the current one and its `manifest.json`, which gives the size and sha256 of
 every file. The page reads both once per library and checks every file it
 downloads against the manifest.
 
-The table is built from each library's `index.json`. A nuclide's
+The table is built from each library's `index.json`. The index lists a
+delayed-fission row for every fission reaction, but many evaluations carry
+no delayed neutron data, so when such a row comes on screen the page reads
+that nuclide's `products.arrow` (tens of kB) and drops the row if it has
+none. A nuclide's
 distributions are one record batch with no byte-range index, so the first
 reaction picked from a nuclide downloads its whole `distributions.arrow` (15 MB
 for Fe56, much less for most), with a progress bar; every other reaction of
