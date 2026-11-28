@@ -115,7 +115,7 @@ the data goes:
   `terms`, and every CSV row ends with a `cite` column of DOI links.
 
 The references are the ones each library's developers ask for, kept equal to
-the credits table of [yamc and yani](https://github.com/fusion-neutronics/yamc-and-yani)
+the credits table of yamc and yani
 (`crates/yamc-nuclide/src/storage/credits.rs`). The page reads only neutron
 data, so JEFF-4.0 is cited by its neutron data set; its decay, fission yield
 and thermal scattering data sets are not used here.
