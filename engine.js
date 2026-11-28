@@ -42,6 +42,15 @@ export async function sha256Hex(bytes) {
 }
 
 /// Build the engine around a decoder from `createArrowDecoder`.
+/// The reaction MTs that emit delayed neutrons, from rows of `products.arrow`:
+/// the same products `view` reads for a delayed-fission choice.
+export function delayedNeutronMts(products) {
+  const mts = products
+    .filter((p) => p.particle === 'neutron' && p.emission_mode === 'delayed')
+    .map((p) => Number(p.reaction_mt));
+  return [...new Set(mts)].sort((a, b) => a - b);
+}
+
 export function createEngine({ origin = ORIGIN, fetchImpl = fetch, decoder }) {
   if (!decoder) throw new Error('createEngine needs a decoder');
 
@@ -50,6 +59,8 @@ export function createEngine({ origin = ORIGIN, fetchImpl = fetch, decoder }) {
   const manifests = new Map();
   /// Decoded nuclides by `${library}/${name}`, least recently used first.
   const nuclides = new Map();
+  /// Delayed-neutron MTs by `${library}/${name}`, as in-flight promises.
+  const delayed = new Map();
 
   function checkLibrary(library) {
     if (!KNOWN_LIBRARIES.has(library)) {
@@ -184,6 +195,19 @@ export function createEngine({ origin = ORIGIN, fetchImpl = fetch, decoder }) {
     return loading;
   }
 
+  /// The MTs whose reaction emits delayed neutrons in one nuclide. The index
+  /// lists a delayed-fission choice for every fission MT, but many evaluations
+  /// carry no delayed neutron data; this reads `products.arrow` alone (tens of
+  /// kB, against megabytes for the distributions) so the table can drop those
+  /// rows before anyone picks one.
+  function delayedMts(library, name) {
+    checkLibrary(library);
+    return memo(delayed, `${library}/${name}`, async () => {
+      const bytes = await fetchVerified(library, `neutron/${name}.arrow/products.arrow`);
+      return delayedNeutronMts(decoder.rowsWhere(decoder.readBatches(bytes), 'emission_mode', 'delayed'));
+    });
+  }
+
   /// What `reactions.arrow` says about one reaction: `{label, q, centerOfMass}`,
   /// or null when it cannot be read with a small range request.
   async function reactionMeta(library, name, mt) {
@@ -255,5 +279,5 @@ export function createEngine({ origin = ORIGIN, fetchImpl = fetch, decoder }) {
     };
   }
 
-  return { ensureRelease, ensureManifest, loadIndex, ensureNuclide, reactionMeta, view };
+  return { ensureRelease, ensureManifest, loadIndex, ensureNuclide, delayedMts, reactionMeta, view };
 }

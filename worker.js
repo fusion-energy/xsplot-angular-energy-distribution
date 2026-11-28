@@ -8,6 +8,8 @@
 //
 //   in  {type: 'index', requestId, library}
 //   out {type: 'index', requestId, index}
+//   in  {type: 'delayed', requestId, library, name}
+//   out {type: 'delayed', requestId, mts}
 //   in  {type: 'view', requestId, library, name, mt, delayed}
 //   out {type: 'progress', requestId, loaded, total}
 //   out {type: 'view', requestId, view}
@@ -37,6 +39,11 @@ self.onmessage = async (event) => {
       case 'index': {
         const index = await engine.loadIndex(event.data.library);
         self.postMessage({ type: 'index', requestId, index });
+        break;
+      }
+      case 'delayed': {
+        const mts = await engine.delayedMts(event.data.library, event.data.name);
+        self.postMessage({ type: 'delayed', requestId, mts });
         break;
       }
       case 'view': {

@@ -137,6 +137,19 @@ try {
   check(await page.isChecked('#mode-angle') && await page.isHidden('#ridge-note'),
     'its Toggle to angle data button switches to angle mode and draws the ridgeline');
 
+  // The index lists a delayed-fission row for every fission MT. U240 in
+  // ENDF/B-VIII.1 has delayed neutron data under MTs 19, 20, 21 and 38 but
+  // not 18, so once its products are checked the 18 delayed row goes.
+  await page.goto(`${BASE}#l=endf-b8.1`);
+  await page.fill('.filter-input[data-column=reaction]', '');
+  await page.fill('.filter-input[data-column=element]', 'U');
+  await page.fill('.filter-input[data-column=nucleons]', '240');
+  await page.waitForFunction(() => {
+    const ids = [...document.querySelectorAll('#rows tr[data-id]')].map((tr) => tr.dataset.id);
+    return ids.includes('endf-b8.1:U240:18') && ids.includes('endf-b8.1:U240:19d') && !ids.includes('endf-b8.1:U240:18d');
+  }, null, { timeout: 60000 });
+  check(true, 'U240 keeps its delayed rows for MTs with delayed neutron data and drops the MT 18 one, which has none');
+
   // Every example plot draws the curves its link names.
   const examples = await page.$$eval('#examples a', (as) => as.map((a) => ({ href: a.getAttribute('href'), text: a.textContent })));
   for (const ex of examples) {

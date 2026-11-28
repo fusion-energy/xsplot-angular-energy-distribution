@@ -99,6 +99,18 @@ export function filterRows(rows, terms, libraries) {
 }
 
 /// One page of rows and the page arithmetic around it.
+/// Drop the delayed-fission rows of nuclides found to have no delayed neutron
+/// data for that MT. `known` maps `library/name` to the Set of MTs that do
+/// have it; a nuclide not in it has not been checked yet and keeps its rows.
+export function dropMissingDelayed(rows, known) {
+  if (!known.size) return rows;
+  return rows.filter((r) => {
+    if (!r.delayed) return true;
+    const mts = known.get(`${LIBRARIES[r.lib].id}/${r.name}`);
+    return !mts || mts.has(r.mt);
+  });
+}
+
 export function paginate(rows, page, limit) {
   const total = rows.length;
   const pages = Math.max(1, Math.ceil(total / limit));
