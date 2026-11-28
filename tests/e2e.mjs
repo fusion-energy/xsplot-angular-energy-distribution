@@ -4,13 +4,14 @@
 //   node tests/e2e.mjs [--url http://127.0.0.1:8000/]
 //
 // Filters the table to Fe56 (n,2n), shows it, picks a ridge by clicking the
-// ridgeline and another by typing an energy, switches to angle mode, then opens
-// every example plot and checks it draws the curves its link names. Writes
+// ridgeline and another by typing an energy, downloads the curves, switches to
+// angle mode, then opens every example plot and checks it draws the curves its
+// link names and lists its libraries first in the citations. Writes
 // screenshots to tests/screenshots/. A failure that names a fetch rather than
 // an assertion is the data host, not the page.
 
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 
 const urlArg = process.argv.indexOf('--url');
 const BASE = urlArg > 0 ? process.argv[urlArg + 1] : 'http://127.0.0.1:8000/';
@@ -37,6 +38,12 @@ const hashHas = async (...parts) => {
     return true;
   } catch { return false; }
 };
+/// The libraries the citation list marks as in the plot, in its order.
+const cited = () => page.$$eval('#cite-list .cite-entry.in-plot', (es) => es.map((e) => e.dataset.library));
+const waitCited = (ids) => page.waitForFunction((want) => {
+  const got = [...document.querySelectorAll('#cite-list .cite-entry.in-plot')].map((e) => e.dataset.library);
+  return got.length === want.length && want.every((id) => got.includes(id));
+}, ids, { timeout: 10000 });
 const waitTraces = (id, n, timeout = 120000) =>
   page.waitForFunction(([i, k]) => (document.getElementById(i).data?.length ?? 0) >= k, [id, n], { timeout });
 
@@ -44,6 +51,15 @@ try {
   await page.goto(BASE);
   await page.waitForSelector('#rows tr[data-id]', { timeout: 60000 });
   check(true, 'the reaction table loads');
+  check(await page.$$eval('#cite-list .cite-entry', (es) => es.length) === 6 && (await cited()).length === 0,
+    'the citation list names all six libraries, none in a plot yet');
+  const cellTitle = await page.getAttribute('#rows tr[data-id] td:last-child', 'title');
+  check(/Cite/.test(cellTitle ?? ''), `a Library cell's hover text cites it: ${cellTitle}`);
+  const menuTitles = await page.$$eval('#library-menu label', (ls) => ls.map((l) => l.title));
+  check(menuTitles.length === 6 && menuTitles.every((t) => /doi:10\./.test(t)), 'every library in the filter menu has a citation as hover text');
+  await page.click('footer [data-scroll-to=cite]');
+  await page.waitForFunction(() => { const r = document.getElementById('cite').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; });
+  check(await hash() === '', 'the footer Cite link scrolls to the citations and leaves the URL alone');
 
   await page.fill('.filter-input[data-column=element]', 'Fe');
   await page.fill('.filter-input[data-column=nucleons]', '56');
@@ -58,6 +74,9 @@ try {
   const ridges = await traces('ridgeline');
   check(ridges >= 30, `the ridgeline draws ${ridges} ridges for Fe56 (n,2n)`);
   check(await hashHas('v=endf-b8.1:Fe56:16'), 'the URL names the ridgeline');
+  await waitCited(['endf-b8.1']);
+  check(await page.$eval('#cite-list .cite-entry', (e) => e.dataset.library) === 'endf-b8.1',
+    'showing a reaction lists its library first in the citations, marked as in the plot');
 
   // Click in the middle of the plot area: some ridge is under it.
   const box = await page.evaluate(() => {
@@ -80,6 +99,15 @@ try {
   check(names.some((n) => n.includes('14 MeV') || n.includes('1.4e7 eV')), `typing 14 MeV adds the 14 MeV curve: ${names.join(' | ')}`);
   check(await hashHas('s=endf-b8.1:Fe56:16:', 'endf-b8.1:Fe56:16:14000000'), `the URL carries the selection: ${await hash()}`);
   await page.screenshot({ path: `${SHOTS}energy.png`, fullPage: true });
+
+  const [jsonDownload] = await Promise.all([page.waitForEvent('download'), page.click('#download-json')]);
+  const json = JSON.parse(readFileSync(await jsonDownload.path(), 'utf8'));
+  check(json.length === 2 && json.every((c) => c.citations?.[0]?.doi === '10.1016/j.nds.2026.04.001' && c.terms),
+    'the JSON download carries each curve\'s citations and terms');
+  const [csvDownload] = await Promise.all([page.waitForEvent('download'), page.click('#download-csv')]);
+  const csv = readFileSync(await csvDownload.path(), 'utf8').trim().split('\n');
+  check(csv[0].endsWith(',cite') && csv.slice(1).every((l) => l.endsWith('https://doi.org/10.11578/endf/2571019')),
+    'every CSV row ends with the DOI links of its library');
 
   await page.click('label[for=mode-angle]');
   await waitTraces('ridgeline', 10);
@@ -110,6 +138,9 @@ try {
     const error = await page.textContent('#error');
     check(await traces('selected') === want && !error.trim() && !notice.trim(),
       `example ${ex.text.trim()} draws ${want} curves with no error or snapping notice`);
+    const libraries = [...new Set([params.get('v'), ...(params.get('s') ?? params.get('a') ?? '').split(';')].filter(Boolean).map((t) => t.split(':')[0]))];
+    await waitCited(libraries);
+    check(true, `example ${ex.text.trim()} lists ${(await cited()).join(', ')} first in the citations`);
     await page.screenshot({ path: `${SHOTS}example-${ex.text.match(/\d/)[0]}.png`, fullPage: true });
   }
   check(consoleErrors.length === 0, `no console errors${consoleErrors.length ? `: ${consoleErrors.join(' | ')}` : ''}`);

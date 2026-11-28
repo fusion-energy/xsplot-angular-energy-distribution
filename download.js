@@ -2,7 +2,11 @@
 //
 // One object (or one block of rows) per curve, each carrying its own
 // provenance: library and release, reaction, incident energy, frame and units,
-// so a file can be read a year later without the page.
+// so a file can be read a year later without the page. Each curve also
+// carries what to cite for its library, and the JSON the terms the library is
+// redistributed under, so the credit travels with the data.
+
+import { citationsFor, termsFor, citeLinks } from './citations.js';
 
 /// `curves`: array of {nuclide, library, release, mt, reaction, emission,
 /// mode, frame, incident_energy_eV, x, p} with x and p typed arrays.
@@ -11,6 +15,8 @@ export function curvesToJson(curves) {
     nuclide: c.nuclide,
     library: c.library,
     release: c.release,
+    citations: citationsFor(c.library),
+    terms: termsFor(c.library),
     mt: c.mt,
     reaction: c.reaction,
     emission: c.emission,
@@ -25,9 +31,10 @@ export function curvesToJson(curves) {
   return JSON.stringify(out, null, 1);
 }
 
-/// Long-form CSV: one row per point, the curve columns repeated.
+/// Long-form CSV: one row per point, the curve columns repeated. The last
+/// column, `cite`, is the DOI links of the library's references.
 export function curvesToCsv(curves) {
-  const lines = ['nuclide,library,release,mt,reaction,emission,quantity,frame,incident_energy_eV,x_name,x,probability_density,probability_density_units'];
+  const lines = ['nuclide,library,release,mt,reaction,emission,quantity,frame,incident_energy_eV,x_name,x,probability_density,probability_density_units,cite'];
   for (const c of curves) {
     const energy = c.mode === 'energy';
     const head = [
@@ -35,8 +42,8 @@ export function curvesToCsv(curves) {
       energy ? 'outgoing energy distribution' : 'angular distribution', c.frame ?? '', c.incident_energy_eV,
       energy ? 'outgoing_energy_eV' : 'cosine',
     ].join(',');
-    const units = energy ? '1/eV' : '1/unit cosine';
-    for (let i = 0; i < c.x.length; i++) lines.push(`${head},${c.x[i]},${c.p[i]},${units}`);
+    const tail = `${energy ? '1/eV' : '1/unit cosine'},${citeLinks(c.library)}`;
+    for (let i = 0; i < c.x.length; i++) lines.push(`${head},${c.x[i]},${c.p[i]},${tail}`);
   }
   return lines.join('\n') + '\n';
 }

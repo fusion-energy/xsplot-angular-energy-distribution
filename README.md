@@ -86,6 +86,40 @@ one HTTP range request into `reactions.arrow`, using the index in
 Libraries: ENDF/B-VIII.1, JEFF-4.0, JENDL-5.0, TENDL-2025, TENDL-2017 and
 FENDL-3.2d.
 
+## Cite the nuclear data
+
+Every distribution the page draws comes from an evaluated nuclear data
+library, and the evaluators who made each one ask to be cited wherever their
+data is used. If you use these plots or their data, cite the libraries they
+come from:
+
+| Library | Cite |
+| --- | --- |
+| ENDF/B-VIII.1 | G.P.A. Nobre, R. Capote, M.T. Pigni et al., Nuclear Data Sheets 210 (2026) 1-224, [doi:10.1016/j.nds.2026.04.001](https://doi.org/10.1016/j.nds.2026.04.001), and the library itself, [doi:10.11578/endf/2571019](https://doi.org/10.11578/endf/2571019) |
+| JEFF-4.0 | The JEFF-4.0 neutron data set, Joint Evaluated Fission and Fusion Project, OECD Nuclear Energy Agency (2025), [doi:10.82555/e9ajn-a3p20](https://doi.org/10.82555/e9ajn-a3p20). The journal paper is in preparation, so the NEA asks for the data set to be cited |
+| JENDL-5 | O. Iwamoto et al., Journal of Nuclear Science and Technology 60 (2023) 1-60, [doi:10.1080/00223131.2022.2141903](https://doi.org/10.1080/00223131.2022.2141903). JAEA requires this citation |
+| TENDL-2025, TENDL-2017 | A.J. Koning, D. Rochman, Nuclear Data Sheets 113 (2012) 2841-2934, [doi:10.1016/j.nds.2012.11.002](https://doi.org/10.1016/j.nds.2012.11.002), and A.J. Koning et al., Nuclear Data Sheets 155 (2019) 1-55, [doi:10.1016/j.nds.2019.01.002](https://doi.org/10.1016/j.nds.2019.01.002). Name the release beside them |
+| FENDL-3.2d | G. Schnabel et al., Nuclear Data Sheets 193 (2024) 1-78, [doi:10.1016/j.nds.2024.01.001](https://doi.org/10.1016/j.nds.2024.01.001) |
+
+JEFF-4.0 and JENDL-5 are published under CC BY 4.0, which asks for the credit
+and the licence to travel with the data, so the page carries them wherever
+the data goes:
+
+- a **Cite the nuclear data** section under the plots lists every library
+  with its references, DOI links, maker and terms, the libraries in the plots
+  first, and links a BibTeX file of every reference (`nuclear-data.bib`);
+- hovering over a library's name, in the table or the library filter, shows
+  its citation;
+- every curve in a JSON download carries `citations` (each a `reference` and
+  its `doi`, the shape yamc gives them in a run's `data_releases`) and
+  `terms`, and every CSV row ends with a `cite` column of DOI links.
+
+The references are the ones each library's developers ask for, kept equal to
+the credits table of yamc and yani
+(`crates/yamc-nuclide/src/storage/credits.rs`). The page reads only neutron
+data, so JEFF-4.0 is cited by its neutron data set; its decay, fission yield
+and thermal scattering data sets are not used here.
+
 ## Files
 
 - `index.html`, `style.css`, `app.js`: the page and its controller
@@ -95,6 +129,7 @@ FENDL-3.2d.
 - `reactions.js`: which reactions emit neutrons; `table.js`: the reaction table
 - `ridgeline.js`, `plot.js`: the two figures; `url_state.js`, `download.js`: the link and the exports
 - `libraries.js`, `mt_names.js`, `elements.js`: copied from nuclide_cross_section_plotter
+- `citations.js`, `nuclear-data.bib`: what to cite for each library, and the BibTeX of every reference; the same files as in nuclide_cross_section_plotter and materials_for_mc_online
 - `vendor/`: Bootstrap, Plotly, apache-arrow and lz4js at pinned versions
 - `tests/`: Node unit tests and a Playwright end-to-end run
 
@@ -111,7 +146,7 @@ data from the network.
 
 ```bash
 npm ci
-npm test                 # the distribution laws, table, URL and ridgeline, no network
+npm test                 # the distribution laws, table, URL, ridgeline, citations and downloads, no network
 npx playwright install chromium
 python3 -m http.server 8000 &
 node tests/e2e.mjs       # drives the page in headless Chromium against the published data
