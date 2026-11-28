@@ -11,6 +11,7 @@ import { buildRidgeline, pickRidge, formatEnergy } from './ridgeline.js';
 import { buildSelectedFigure, styleFor, axisTitles, SURFACE, INK_SECONDARY } from './plot.js';
 import { curvesToJson, curvesToCsv, downloadText } from './download.js';
 import { ATOMIC_SYMBOL, nucleonsLabel } from './elements.js';
+import { citeTitle, citeListHtml } from './citations.js';
 
 const PAGE_SIZE = 10;
 /// Decoded views kept on this side (the ridgeline's, and those curves come from).
@@ -164,7 +165,7 @@ function renderTable() {
       <td class="mono">${nucleonsLabel(r.a, r.meta)}</td>
       <td>${escapeHtml(reaction)}</td>
       <td class="mono">${r.mt}</td>
-      <td>${lib.label}</td>
+      <td title="${escapeHtml(citeTitle(lib.id))}">${lib.label}</td>
     </tr>`;
   });
   if (!html.length) html.push('<tr><td colspan="6" class="text-center text-secondary">No reactions match these filters.</td></tr>');
@@ -511,10 +512,34 @@ function exportCurves() {
   }));
 }
 
+// --- citations ---------------------------------------------------------------------
+
+/// The libraries on screen: the ridgeline's and those of the selected curves
+/// in both modes.
+function librariesInPlot() {
+  const used = new Set();
+  if (state.view) used.add(state.view.library);
+  for (const mode of MODES) for (const s of state[mode]) used.add(s.library);
+  return used;
+}
+
+let citeKey = null;
+/// The citation list, with the libraries on screen first. Redrawn only when
+/// that set changes, so text being selected in it is left alone otherwise.
+function renderCite() {
+  const used = librariesInPlot();
+  const key = LIBRARIES.filter((l) => used.has(l.id)).map((l) => l.id).join(',');
+  if (key === citeKey) return;
+  citeKey = key;
+  $('cite-list').innerHTML = citeListHtml(LIBRARIES.map((l) => l.id), used);
+}
+
 // --- URL ---------------------------------------------------------------------------
 
 let urlTimer = null;
+/// Every change to the plot ends here, so the citation list follows it too.
 function syncUrl() {
+  renderCite();
   clearTimeout(urlTimer);
   urlTimer = setTimeout(() => {
     const target = `${location.pathname}${location.search}${encodeState(state)}`;
@@ -542,6 +567,7 @@ function applyUrl() {
     drawRidgeline();
     renderTable();
   }
+  renderCite();
   updateSelected();
 }
 
@@ -567,7 +593,7 @@ function libraryDropdown(onChange) {
   const button = $('library-filter');
   menu.innerHTML = LIBRARIES.map((l) => `<div class="form-check">
       <input class="form-check-input" type="checkbox" id="lib-${l.id}" value="${l.id}">
-      <label class="form-check-label" for="lib-${l.id}">${l.label}</label></div>`).join('');
+      <label class="form-check-label" for="lib-${l.id}" title="${escapeHtml(citeTitle(l.id))}">${l.label}</label></div>`).join('');
   const openMenu = () => {
     const r = button.getBoundingClientRect();
     menu.style.top = `${r.bottom + 4}px`;
@@ -694,6 +720,14 @@ function buildControls() {
   $('download-json').addEventListener('click', () => downloadText(`${stem()}.json`, curvesToJson(exportCurves()), 'application/json'));
   $('download-csv').addEventListener('click', () => downloadText(`${stem()}.csv`, curvesToCsv(exportCurves()), 'text/csv'));
   window.addEventListener('hashchange', applyUrl);
+  // The hash holds the plot, so links to the citations scroll rather than
+  // navigate to an anchor.
+  for (const el of document.querySelectorAll('[data-scroll-to]')) {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      $(el.dataset.scrollTo).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 }
 
 // --- start -------------------------------------------------------------------------
@@ -701,6 +735,7 @@ function buildControls() {
 buildControls();
 renderControls();
 renderTable();
+renderCite();
 loadEnabledLibraries();
 if (state.view) showView(state.view); else drawRidgeline();
 updateSelected();

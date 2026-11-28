@@ -15,6 +15,7 @@
 <main class="container-xxl py-3">
     <h1 class="text-center mb-1">Neutron Angle &amp; Energy Distribution Plotter</h1>
     <p class="subtitle text-center mb-1">Where the neutrons from a nuclear reaction go, and how fast: outgoing energy and angle distributions, by Jon Shimwell. See my other projects on <a href="https://xsplot.com/" target="_blank" rel="noopener">xsplot.com</a></p>
+    <p class="subtitle text-center mb-1">The distributions come from six evaluated nuclear data libraries. If you use them, please <button type="button" class="link-button" data-scroll-to="cite">cite the libraries</button>.</p>
     <p class="subtitle text-center mb-3 examples" id="examples">Example plots:
         <a href="#v=endf-b8.1:Fe56:16&amp;e=MeV&amp;s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000;tendl-2025:Fe56:16:14000000" data-example="1">[1] Fe56 (n,2n) at 14 MeV, 3 libraries</a> ·
         <a href="#v=endf-b8.1:Fe56:2&amp;m=angle&amp;e=MeV&amp;a=endf-b8.1:C12:2:14000000;endf-b8.1:Fe56:2:14000000;endf-b8.1:Pb208:2:14000000" data-example="2">[2] elastic scattering angle, light to heavy</a> ·
@@ -129,8 +130,17 @@
         </div>
     </section>
 
+    <section id="cite" class="cite-section mt-4" aria-labelledby="cite-heading">
+        <h2 id="cite-heading" class="h6 section-title">Cite the nuclear data</h2>
+        <p class="small mb-2">Every distribution on this page comes from an evaluated nuclear data library: years of measurement, nuclear modelling and expert judgement by the evaluators who made it, who ask to be cited wherever their data is used. If you use these plots or their data, cite the libraries they come from. The libraries in the plots above are listed first. The JSON and CSV downloads carry the same references, and hovering over a library's name in the table shows its citation.</p>
+        <div id="cite-list" class="small" aria-live="polite"></div>
+        <p class="small mt-2 mb-0">What is drawn is each library converted from its evaluations to the Arrow tables the yamc Monte Carlo code reads (neutron data processed with NJOY): the outgoing-particle distributions yamc samples, read as published. The analytic energy laws and the angle averages are computed on this page from them, as the <a href="https://github.com/fusion-energy/xsplot-angular-energy-distribution#what-is-drawn" target="_blank" rel="noopener">README</a> describes. No evaluated value was intentionally changed. <a href="./nuclear-data.bib" download>BibTeX for every reference</a>.</p>
+    </section>
+
     <footer class="mt-4 pt-3 border-top border-secondary small text-center">
         <a href="./privacy.html">Privacy</a>
+        &middot;
+        <button type="button" class="link-button" data-scroll-to="cite">Cite</button>
         &middot;
         <a href="https://github.com/fusion-energy/xsplot-angular-energy-distribution" target="_blank" rel="noopener">Source</a>
     </footer>
