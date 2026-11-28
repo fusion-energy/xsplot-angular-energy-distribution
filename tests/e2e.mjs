@@ -69,6 +69,8 @@ try {
   const ids = await page.$$eval('#rows tr[data-id]', (trs) => trs.map((t) => t.dataset.id));
   check(ids.includes('endf-b8.1:Fe56:16'), `filters narrow to Fe56 (n,2n): ${ids.join(', ')}`);
 
+  check(await page.isChecked('#mode-angle'), 'the page opens in angle mode');
+  await page.click('label[for=mode-energy]');
   await page.click('#rows tr[data-id="endf-b8.1:Fe56:16"]');
   await waitTraces('ridgeline', 10);
   const ridges = await traces('ridgeline');
@@ -115,16 +117,25 @@ try {
   await page.fill('#ein-value', '14');
   await page.click('#ein-form button[type=submit]');
   await waitTraces('selected', 1);
-  check(await hashHas('m=angle', 'a=endf-b8.1:Fe56:16:14000000'), 'angle selection is in the URL');
+  check(await hashHas('a=endf-b8.1:Fe56:16:14000000') && !(await hash()).includes('m='),
+    'angle selection is in the URL, and angle, the default mode, is left out of it');
   await page.screenshot({ path: `${SHOTS}angle.png`, fullPage: true });
 
-  // Elastic has no energy mode: the note replaces the ridgeline.
+  // Elastic has no energy mode: the note replaces the ridgeline and offers
+  // the angle data instead.
   await page.fill('.filter-input[data-column=reaction]', 'elastic');
   await page.waitForSelector('#rows tr[data-id="endf-b8.1:Fe56:2"]');
   await page.click('label[for=mode-energy]');
   await page.click('#rows tr[data-id="endf-b8.1:Fe56:2"]');
   await page.waitForFunction(() => !document.getElementById('ridge-note').classList.contains('d-none'), null, { timeout: 120000 });
-  check((await page.textContent('#ridge-note')).includes('elastic'), 'elastic in energy mode explains why there is nothing to draw');
+  const emptyNote = (await page.textContent('#ridge-note')).trim();
+  check(emptyNote.startsWith('This reaction has no outgoing energy data, but it does have angle data.'),
+    `elastic in energy mode says the angle data is there: ${emptyNote}`);
+  await page.screenshot({ path: `${SHOTS}empty-energy.png`, fullPage: true });
+  await page.click('#ridge-note-toggle');
+  await waitTraces('ridgeline', 10);
+  check(await page.isChecked('#mode-angle') && await page.isHidden('#ridge-note'),
+    'its Toggle to angle data button switches to angle mode and draws the ridgeline');
 
   // Every example plot draws the curves its link names.
   const examples = await page.$$eval('#examples a', (as) => as.map((a) => ({ href: a.getAttribute('href'), text: a.textContent })));

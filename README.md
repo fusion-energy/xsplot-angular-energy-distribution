@@ -21,7 +21,8 @@ loads served from this repository.
    energy, placed at that energy on a log axis and scaled to its own peak, so
    it shows how the shape changes. Click a ridge to add it to the panel on the
    right, click again to remove it, or type an energy to add the nearest
-   tabulated one. Switch between **Outgoing energy** and **Angle**; each mode
+   tabulated one. The page opens on **Angle**, which nearly every reaction has;
+   switch to **Outgoing energy** with the toggle. Each mode
    keeps its own selection.
 3. **Read values** off the selected panel, which plots the true probability
    density (per eV or MeV, or per unit cosine). Curves from different nuclides,
@@ -31,12 +32,13 @@ loads served from this repository.
 Everything is in the URL hash, so any plot can be sent as a link:
 
 ```
-#v=endf-b8.1:Fe56:16&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&e=MeV
+#v=endf-b8.1:Fe56:16&m=energy&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&e=MeV
 ```
 
 `v` is the reaction on the ridgeline, `s` and `a` the selected curves of the
 energy and angle modes (`library:nuclide:MT:incident energy in eV`, the MT
-followed by `d` for delayed fission neutrons), `m=angle` the mode, and `x`,
+followed by `d` for delayed fission neutrons), `m=energy` the mode (Angle is
+the default), and `x`,
 `y`, `e`, `n` and `l` the axes, energy unit, number of ridges and the libraries
 listed. See `url_state.js`.
 

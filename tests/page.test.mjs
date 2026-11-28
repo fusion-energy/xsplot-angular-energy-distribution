@@ -78,6 +78,15 @@ test('the URL round-trips and leaves defaults out', () => {
   assert.equal(einText(14000000.000000002), '14000000');
 });
 
+test('angle is the default mode, and energy mode is spelled m=energy', () => {
+  assert.equal(decodeState('').mode, 'angle');
+  assert.equal(decodeState('#m=energy').mode, 'energy');
+  const s = decodeState('#v=endf-b8.1:Fe56:16');
+  assert.equal(encodeState(s), '#v=endf-b8.1:Fe56:16');
+  s.mode = 'energy';
+  assert.equal(encodeState(s), '#v=endf-b8.1:Fe56:16&m=energy');
+});
+
 test('the URL drops what it cannot read and opens a ridgeline for bare selections', () => {
   const s = decodeState('#s=endf-b8.1:Fe56:16:14000000;nope:Fe56:16:1;endf-b8.1:fe56:16:1;endf-b8.1:Fe56:16:-3&n=7');
   assert.equal(s.energy.length, 1);

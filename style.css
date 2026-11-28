@@ -148,6 +148,7 @@ th.sortable .sort-icon {
   margin-top: -620px;
   height: 620px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
@@ -155,6 +156,11 @@ th.sortable .sort-icon {
   color: #c3c2b7;
   position: relative;
   pointer-events: none;
+}
+
+/* The note sits over the plot and lets clicks through, except on its button. */
+.ridge-note button {
+  pointer-events: auto;
 }
 
 .ridge-list {

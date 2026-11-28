@@ -2,14 +2,14 @@
 // modes and the axis settings, in the hash, so a plot can be linked and comes
 // back on reload.
 //
-//   #v=endf-b8.1:Fe56:16&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&a=endf-b8.1:Fe56:2:1000000&m=angle&x=lin&y=lin&e=MeV&n=80&l=endf-b8.1,jeff-4.0
+//   #v=endf-b8.1:Fe56:16&s=endf-b8.1:Fe56:16:14000000;jeff-4.0:Fe56:16:14000000&a=endf-b8.1:Fe56:2:1000000&m=energy&x=lin&y=lin&e=MeV&n=80&l=endf-b8.1,jeff-4.0
 //
 //   v  the ridgeline: library:nuclide:reaction, the reaction an MT with a `d`
 //      for the delayed neutrons of fission (18d)
 //   s  selected curves in energy mode, `;` separated, each
 //      library:nuclide:reaction:incident energy in eV
 //   a  the same for angle mode
-//   m  `angle` when angle mode is showing (energy is the default)
+//   m  `energy` when energy mode is showing (angle is the default)
 //   x  `lin` for a linear outgoing-energy axis, y `lin` for a linear density axis
 //   e  `MeV` for energies in MeV (eV is the default)
 //   n  ridges drawn (40 is the default)
@@ -66,7 +66,7 @@ export function encodeState(state) {
   if (state.view) parts.push(`v=${state.view.library}:${state.view.name}:${choiceId(state.view.mt, state.view.delayed)}`);
   if (state.energy.length) parts.push(`s=${state.energy.map(selectionText).join(';')}`);
   if (state.angle.length) parts.push(`a=${state.angle.map(selectionText).join(';')}`);
-  if (state.mode === 'angle') parts.push('m=angle');
+  if (state.mode === 'energy') parts.push('m=energy');
   if (!state.xLog) parts.push('x=lin');
   if (!state.yLog) parts.push('y=lin');
   if (state.energyUnit === 'MeV') parts.push('e=MeV');
@@ -81,7 +81,7 @@ export function decodeState(hash) {
   const state = {
     libraries: new Set(LIBRARIES.map((l) => l.id)),
     view: null,
-    mode: 'energy',
+    mode: 'angle',
     energy: [],
     angle: [],
     xLog: true,
@@ -99,7 +99,7 @@ export function decodeState(hash) {
   if (fields.has('v')) state.view = parseView(fields.get('v'));
   state.energy = parseSelections(fields.get('s'));
   state.angle = parseSelections(fields.get('a'));
-  if (fields.get('m') === 'angle') state.mode = 'angle';
+  if (fields.get('m') === 'energy') state.mode = 'energy';
   if (fields.get('x') === 'lin') state.xLog = false;
   if (fields.get('y') === 'lin') state.yLog = false;
   if (fields.get('e') === 'MeV') state.energyUnit = 'MeV';
